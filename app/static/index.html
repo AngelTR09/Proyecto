@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Predictor de vida útil de motores</title>
+  <meta name="description" content="Estimación de la vida útil restante (RUL) de motores turbofán con datos NASA C-MAPSS FD001.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <h1>Predictor de vida útil restante</h1>
+      <p class="sub">Motores turbofán · NASA C-MAPSS FD001 · XGBoost</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="panel" aria-label="Origen de los datos">
+      <div class="tabs" role="tablist">
+        <button class="tab active" id="tab-demo" role="tab" aria-selected="true">Motor de demostración</button>
+        <button class="tab" id="tab-custom" role="tab" aria-selected="false">Mis datos</button>
+      </div>
+
+      <div id="pane-demo">
+        <div class="row">
+          <label for="engine">Motor de prueba</label>
+          <select id="engine"></select>
+        </div>
+        <p class="hint">Son los 100 motores de prueba de NASA. Se conoce su vida restante real, así que puedes comparar la predicción con la realidad.</p>
+      </div>
+
+      <div id="pane-custom" hidden>
+        <p class="hint">Pega o sube el historial de un motor, un ciclo por fila: archivo de NASA (26 columnas, sin encabezado) o CSV con encabezado. Se necesitan al menos <code>setting1</code>, <code>setting2</code> y los sensores 2, 3, 4, 7, 8, 9, 11, 12, 13, 14, 15, 17, 20 y 21.</p>
+        <textarea id="raw" rows="7" spellcheck="false" placeholder="Pega aquí el historial del motor…"></textarea>
+        <div class="row wrapping">
+          <input type="file" id="file" accept=".txt,.csv,text/plain,text/csv">
+          <button class="ghost" id="example" type="button">Cargar ejemplo</button>
+          <span id="unit-wrap" hidden><label for="unit">Motor</label> <select id="unit"></select></span>
+          <button class="primary" id="run" type="button">Estimar</button>
+        </div>
+      </div>
+
+      <p id="error" class="error" role="alert" hidden></p>
+    </section>
+
+    <div id="results" hidden>
+      <section class="panel" aria-label="Ciclo actual">
+        <div class="row">
+          <label for="cycle">Ciclo actual</label>
+          <input type="range" id="cycle" min="1" max="1" value="1">
+          <output id="cycle-out" for="cycle"></output>
+        </div>
+        <p class="hint" id="cycle-hint">Mueve el control para ver qué estimaría el modelo en cada momento de la vida del motor, usando solo los ciclos anteriores.</p>
+      </section>
+
+      <section class="cards" aria-label="Resultado">
+        <article class="card big">
+          <h2>RUL estimada</h2>
+          <p class="num"><span id="rul">–</span> <small>ciclos</small></p>
+          <p class="muted" id="rul-note"></p>
+        </article>
+        <article class="card">
+          <h2>Estimación conservadora</h2>
+          <p class="num"><span id="cons">–</span> <small>ciclos</small></p>
+          <p class="muted">Resta el margen con que el modelo sobreestimó en el 90 % de los motores de prueba.</p>
+        </article>
+        <article class="card" id="status-card">
+          <h2>Estado</h2>
+          <p><span class="badge" id="badge">–</span></p>
+          <p class="muted" id="advice"></p>
+        </article>
+        <article class="card" id="real-card" hidden>
+          <h2>RUL real</h2>
+          <p class="num"><span id="real">–</span> <small>ciclos</small></p>
+          <p class="muted" id="real-note"></p>
+        </article>
+      </section>
+
+      <ul id="warnings" class="warnings"></ul>
+
+      <section class="panel" aria-label="Evolución de la RUL">
+        <h2>RUL estimada a lo largo de la vida del motor</h2>
+        <div id="chart-rul" class="chart"></div>
+      </section>
+
+      <section class="panel" aria-label="Sensores">
+        <div class="row">
+          <h2 class="inline">Sensor</h2>
+          <select id="sensor" aria-label="Sensor a graficar"></select>
+        </div>
+        <div id="chart-sensor" class="chart"></div>
+      </section>
+    </div>
+
+    <p class="foot">Los datos son simulados (NASA C-MAPSS, un solo modo de falla). Esta herramienta apoya la decisión de mantenimiento, no la reemplaza.
+      Los umbrales del estado son de referencia. Error del modelo en prueba: MAE 13,1 ciclos, RMSE 17,8 ciclos.</p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

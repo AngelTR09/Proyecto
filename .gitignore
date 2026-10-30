@@ -1,2 +1,10 @@
-/Informe_Proyecto_ML.docx
-/ML - Informe Proyecto Final.pdf
+/doc
+
+# Entorno y caché de Python
+.venv/
+__pycache__/
+*.pyc
+
+# Generados por el script de entrenamiento (el modelo que se despliega vive en models/)
+/data/
+/outputs/

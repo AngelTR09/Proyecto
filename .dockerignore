@@ -1,0 +1,12 @@
+.git
+.gitignore
+.venv
+**/__pycache__
+**/*.pyc
+doc
+data
+outputs
+rul_cmapss_fd001.py
+README.md
+Dockerfile
+.dockerignore

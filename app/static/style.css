@@ -1,0 +1,63 @@
+:root {
+  --bg: #f5f7fa; --panel: #ffffff; --text: #1b2430; --muted: #5d6b7c; --line: #dbe2ea;
+  --accent: #1f4e8c; --accent-text: #ffffff;
+  --ok: #1d7a46; --ok-bg: #e2f4ea; --warn: #8a5a00; --warn-bg: #fdf0d2; --bad: #a3231f; --bad-bg: #fbe3e1;
+  --pred: #1f4e8c; --real: #c0661a; --band: rgba(31, 78, 140, .14); --grid: #e6ebf1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1620; --panel: #172230; --text: #e6edf5; --muted: #9bacbf; --line: #2a3a4d;
+    --accent: #6aa5ee; --accent-text: #0b1420;
+    --ok: #6fd69b; --ok-bg: #12301f; --warn: #f0c565; --warn-bg: #352a0f; --bad: #ff8d86; --bad-bg: #3a1614;
+    --pred: #6aa5ee; --real: #f0a35e; --band: rgba(106, 165, 238, .18); --grid: #243447;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+.top { background: var(--panel); border-bottom: 1px solid var(--line); padding: 18px 0 14px; }
+h1 { margin: 0; font-size: 1.5rem; }
+.sub { margin: 2px 0 0; color: var(--muted); }
+main { padding-top: 20px; padding-bottom: 40px; }
+h2 { font-size: 1rem; margin: 0 0 8px; }
+h2.inline { margin: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.tabs { display: flex; gap: 4px; margin: -4px 0 14px; border-bottom: 1px solid var(--line); }
+.tab { background: none; border: 0; border-bottom: 3px solid transparent; padding: 8px 12px; color: var(--muted); font: inherit; cursor: pointer; }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.row { display: flex; align-items: center; gap: 12px; }
+.row.wrapping { flex-wrap: wrap; margin-top: 10px; }
+.row input[type=range] { flex: 1; min-width: 120px; accent-color: var(--accent); }
+label { font-weight: 600; }
+select, textarea, input[type=file] { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; }
+select { min-width: 220px; }
+textarea { width: 100%; font-family: ui-monospace, Consolas, monospace; font-size: .8rem; resize: vertical; }
+button.primary, button.ghost { font: inherit; border-radius: 6px; padding: 8px 16px; cursor: pointer; border: 1px solid var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-text); font-weight: 600; margin-left: auto; }
+button.ghost { background: none; color: var(--accent); }
+button:disabled { opacity: .55; cursor: wait; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.hint, .muted { color: var(--muted); font-size: .88rem; margin: 8px 0 0; }
+code { font-family: ui-monospace, Consolas, monospace; font-size: .85em; background: var(--bg); padding: 1px 4px; border-radius: 4px; }
+.error { background: var(--bad-bg); color: var(--bad); border-radius: 6px; padding: 8px 12px; margin: 12px 0 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.card.big { border-color: var(--accent); }
+.num { font-size: 2.2rem; font-weight: 700; margin: 0; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.num small { font-size: .9rem; font-weight: 400; color: var(--muted); }
+.badge { display: inline-block; padding: 4px 14px; border-radius: 99px; font-weight: 700; }
+.badge.normal { background: var(--ok-bg); color: var(--ok); }
+.badge.inspeccion { background: var(--warn-bg); color: var(--warn); }
+.badge.critico { background: var(--bad-bg); color: var(--bad); }
+.warnings { list-style: none; padding: 0; margin: 0 0 16px; }
+.warnings li { background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 8px 12px; margin-bottom: 6px; font-size: .9rem; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart .grid { stroke: var(--grid); stroke-width: 1; }
+.chart text { fill: var(--muted); font-size: 12px; }
+.chart .legend text { fill: var(--text); }
+.foot { color: var(--muted); font-size: .82rem; margin-top: 8px; }
+@media (max-width: 560px) {
+  .row { flex-wrap: wrap; }
+  button.primary { margin-left: 0; width: 100%; }
+  select { min-width: 0; width: 100%; }
+}
