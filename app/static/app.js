@@ -14,6 +14,8 @@ let info = null;        // /api/info
 let S = null;           // resultado actual: { cycles, rul, rulReal, history }
 let parsed = null;      // grupos leídos del texto en "Mis datos"
 let mode = "demo";
+let explainSeq = 0;     // descarta respuestas de explicación atrasadas
+let explainTimer = null;
 
 const fmt = (v) => v.toLocaleString("es-PE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
@@ -116,6 +118,16 @@ function render() {
   $("advice").textContent = ADVICE[status][1];
   $("rul-note").textContent = idx === n - 1 ? "En el último ciclo observado." : "Con los datos hasta este ciclo.";
 
+  const al = S.alarm;
+  $("alarm-card").hidden = !al;
+  if (al) {
+    const p = al.prob[idx];
+    $("prob").textContent = (p * 100).toFixed(0);
+    const on = p >= al.threshold;
+    $("alarm-note").innerHTML = `<span class="badge ${on ? "alarma" : "sin-alarma"}">${on ? "Alarma" : "Sin alarma"}</span> Probabilidad de falla en ≤ ${al.horizon} ciclos (umbral ${(al.threshold * 100).toFixed(0)} %).`;
+  }
+  scheduleExplain(idx);
+
   const real = S.rulReal;
   $("real-card").hidden = !real;
   if (real) {
@@ -126,6 +138,7 @@ function render() {
 
   const warns = [];
   if (idx + 1 < info.min_history) warns.push(`Solo hay ${idx + 1} ciclos hasta este punto; el modelo usa ventanas de ${info.min_history}, así que la estimación es poco fiable.`);
+  if (S.cycles[0] !== 1) warns.push("El historial no empieza en el ciclo 1: la línea base se calcula con los primeros 10 ciclos recibidos y la estimación puede desviarse.");
   if (rul >= SATURATION) warns.push(`El modelo se entrenó con la RUL acotada a ${info.rul_cap} ciclos: indica motor saludable, pero no distingue valores mayores.`);
   $("warnings").innerHTML = warns.map((w) => `<li>${w}</li>`).join("");
 
@@ -148,8 +161,36 @@ function render() {
   });
 }
 
-function setResult(res, history) {
-  S = { cycles: res.cycles, rul: res.rul, rulReal: res.rul_real || null, history };
+// ---------- explicación (SHAP) ----------
+function scheduleExplain(idx) {
+  clearTimeout(explainTimer);
+  explainTimer = setTimeout(() => loadExplain(idx), 150);
+}
+
+async function loadExplain(idx) {
+  if (!S || !S.explainCtx) return;
+  const seq = ++explainSeq;
+  try {
+    const ctx = S.explainCtx;
+    const res = ctx.unit !== undefined
+      ? await api(`/api/demo/engines/${ctx.unit}/explain?cycle=${S.cycles[idx]}`)
+      : await api("/api/explain", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: ctx.data, index: idx }) });
+    if (seq !== explainSeq) return;
+    $("explain-note").textContent = res.note;
+    const maxAbs = Math.max(...res.drivers.map((d) => Math.abs(d.contribution)), 1e-9);
+    $("drivers").innerHTML = res.drivers.map((d) => {
+      const w = (Math.abs(d.contribution) / maxAbs) * 50;
+      const side = d.contribution >= 0 ? `left:50%;width:${w}%` : `left:${50 - w}%;width:${w}%`;
+      const cls = d.contribution >= 0 ? "pos" : "neg";
+      return `<li><span>${d.label}</span><span class="bar"><i class="${cls}" style="${side}"></i></span><span class="val">${d.contribution >= 0 ? "+" : "−"}${fmt(Math.abs(d.contribution))}</span></li>`;
+    }).join("");
+  } catch (e) {
+    if (seq === explainSeq) { $("drivers").innerHTML = ""; $("explain-note").textContent = "No se pudo calcular la explicación."; }
+  }
+}
+
+function setResult(res, history, explainCtx) {
+  S = { cycles: res.cycles, rul: res.rul, rulReal: res.rul_real || null, history, alarm: res.alarm || null, explainCtx };
   const n = res.cycles.length;
   $("cycle").max = n;
   $("cycle").value = n;
@@ -168,7 +209,7 @@ async function loadDemo() {
   showError("");
   try {
     const res = await api(`/api/demo/engines/${$("engine").value}`);
-    setResult(res, res.history);
+    setResult(res, res.history, { unit: Number($("engine").value) });
   } catch (e) { $("results").hidden = true; showError(e.message); }
 }
 
@@ -222,7 +263,7 @@ async function runCustom(reparse = true) {
     // el backend ordena por ciclo; la gráfica de sensores debe seguir el mismo orden
     const order = data.cycle ? data.cycle.map((c, i) => [c, i]).sort((a, b) => a[0] - b[0]).map((p) => p[1]) : data[info.input_columns[0]].map((_, i) => i);
     const history = Object.fromEntries(info.input_columns.map((c) => [c, order.map((i) => data[c][i])]));
-    setResult(res, history);
+    setResult(res, history, { data });
   } catch (e) { $("results").hidden = true; showError(e.message); }
   finally { $("run").disabled = false; }
 }
@@ -255,6 +296,8 @@ function setMode(next) {
 async function init() {
   try {
     info = await api("/api/info");
+    $("sub").textContent = `Motores turbofán · NASA C-MAPSS FD001 · ${info.model}`;
+    if (info.test_metrics) $("foot-metrics").textContent = ` Error del modelo en prueba: MAE ${fmt(info.test_metrics.MAE)} ciclos, RMSE ${fmt(info.test_metrics.RMSE)} ciclos.`;
     const engines = await api("/api/demo/engines");
     $("engine").innerHTML = engines.map((e) => `<option value="${e.unit}">Motor ${e.unit} · ${e.n_cycles} ciclos observados</option>`).join("");
   } catch (e) { showError(`No se pudo conectar con el servicio: ${e.message}`); return; }

@@ -1,0 +1,8 @@
+-r requirements.txt
+matplotlib==3.11.2
+seaborn==0.13.2
+lime==0.2.0.1
+pytest==9.1.1
+httpx==0.28.1
+# Solo para `experimentos_semanas.py --semana 11` (CNN 1D); no hace falta para entrenar ni para desplegar:
+# tensorflow-cpu

@@ -1,4 +1,4 @@
-"""API y servidor web del predictor de RUL (NASA C-MAPSS FD001, modelo XGBoost)."""
+"""API y servidor web del predictor de RUL (NASA C-MAPSS FD001, ensamble XGBoost + MLP)."""
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -9,16 +9,17 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from .explain import top_drivers
 from .features import INPUT_COLS, MIN_HISTORY, build_features
 
 BASE = Path(__file__).resolve().parent
 MODEL_PATH = BASE.parent / "models" / "modelo_rul_fd001.joblib"
 MAX_CYCLES = 1000
 
-# Referencias de decisión. El informe (sec. 7) muestra que el modelo tiende a sobreestimar la RUL:
-# en el 90 % de los motores de prueba, (predicha - real) <= 25,5 ciclos. Restar ese margen da una
-# estimación conservadora. Los umbrales del semáforo son una política ajustable, no un resultado del modelo.
-OVERESTIMATE_P90 = 25.5
+# Referencias de decisión. El margen conservador resta la sobreestimación que el modelo mostró en el 90 % de
+# los ciclos de validación cruzada (zona RUL <= 125); lo calcula `entrenar_modelo.py` y viaja dentro del
+# modelo guardado. Los umbrales del semáforo son una política ajustable, no un resultado del modelo.
+DEFAULT_OVERESTIMATE_P90 = 25.5
 CRITICAL_BELOW = 15       # RUL conservadora <= 15 ciclos
 INSPECT_BELOW = 50        # RUL conservadora <= 50 ciclos
 SATURATION = 120          # el modelo se entrenó con la RUL acotada a 125
@@ -33,6 +34,11 @@ async def lifespan(_: FastAPI):
     STATE["features"] = bundle["features"]
     STATE["cap"] = bundle["rul_cap"]
     STATE["name"] = bundle["name"]
+    STATE["p90"] = float(bundle.get("overestimate_p90", DEFAULT_OVERESTIMATE_P90))
+    STATE["clf"] = bundle.get("classifier")
+    STATE["horizon"] = int(bundle.get("alarm_horizon", 30))
+    STATE["alarm_th"] = float(bundle.get("alarm_threshold", 0.5))
+    STATE["test_metrics"] = bundle.get("test_metrics")
     test = pd.read_csv(BASE / "data" / "demo_test.csv")
     rul = pd.read_csv(BASE / "data" / "demo_rul.csv").set_index("unit")["rul_real"]
     STATE["demo"] = {int(u): g.sort_values("cycle").reset_index(drop=True) for u, g in test.groupby("unit")}
@@ -56,27 +62,55 @@ def _predict(df: pd.DataFrame) -> dict:
     X = build_features(df, STATE["features"])
     pred = np.clip(STATE["model"].predict(X), 0, None)
     last = float(pred[-1])
-    conservative = max(last - OVERESTIMATE_P90, 0.0)
+    conservative = max(last - STATE["p90"], 0.0)
     status, advice = _status(conservative)
     warnings = []
     if len(df) < MIN_HISTORY:
-        warnings.append(f"Solo hay {len(df)} ciclos; el modelo usa ventanas de {MIN_HISTORY}, "
+        warnings.append(f"Solo hay {len(df)} ciclos; las variables usan ventanas de {MIN_HISTORY}, "
                         "por lo que la estimación es menos fiable.")
+    if "cycle" in df and len(df) and int(df["cycle"].iloc[0]) != 1:
+        warnings.append("El historial no empieza en el ciclo 1: la línea base del motor se calcula con los "
+                        "primeros 10 ciclos recibidos y la estimación puede desviarse.")
     if last >= SATURATION:
         warnings.append(f"El modelo se entrenó con la RUL acotada a {STATE['cap']} ciclos: "
                         f"indica motor saludable, pero no distingue valores mayores.")
-    return {
+    out = {
         "n_cycles": len(df),
         "rul": [round(float(v), 1) for v in pred],
         "last": {"rul": round(last, 1), "rul_conservative": round(conservative, 1),
                  "status": status, "advice": advice},
         "warnings": warnings,
     }
+    if STATE.get("clf") is not None:
+        prob = STATE["clf"].predict_proba(X)[:, 1]
+        out["alarm"] = {"horizon": STATE["horizon"], "threshold": round(STATE["alarm_th"], 2),
+                        "prob": [round(float(p), 3) for p in prob],
+                        "triggered": bool(prob[-1] >= STATE["alarm_th"])}
+    return out
+
+
+def _explain(df: pd.DataFrame, index: int | None) -> dict:
+    """Variables que más pesan en la predicción de un ciclo (por defecto el último)."""
+    X = build_features(df, STATE["features"])
+    i = len(X) - 1 if index is None else index
+    if not 0 <= i < len(X):
+        raise HTTPException(422, "El ciclo pedido está fuera del historial.")
+    res = top_drivers(STATE["model"], X.iloc[[i]])
+    res["cycle_index"] = i
+    res["note"] = ("Contribuciones SHAP exactas del componente XGBoost, que aporta la mitad del promedio "
+                   "del ensamble. Positivo = aleja la falla (más vida restante); negativo = la acerca."
+                   if STATE["name"].startswith("Ensamble") else
+                   "Contribuciones SHAP exactas del modelo. Positivo = más vida restante; negativo = menos.")
+    return res
 
 
 class PredictRequest(BaseModel):
     # Formato columnar: {"setting1": [...], "sensor2": [...], ...}; opcionalmente "cycle".
     data: dict[str, list[float]]
+
+
+class ExplainRequest(PredictRequest):
+    index: int | None = None     # posición del ciclo dentro del historial; por defecto, el último
 
 
 def _frame(data: dict[str, list[float]]) -> pd.DataFrame:
@@ -108,8 +142,11 @@ def health():
 def info():
     return {"model": STATE["name"], "rul_cap": STATE["cap"], "input_columns": INPUT_COLS,
             "min_history": MIN_HISTORY, "max_cycles": MAX_CYCLES,
-            "overestimate_p90": OVERESTIMATE_P90,
-            "thresholds": {"critical": CRITICAL_BELOW, "inspection": INSPECT_BELOW}}
+            "overestimate_p90": round(STATE["p90"], 1),
+            "thresholds": {"critical": CRITICAL_BELOW, "inspection": INSPECT_BELOW},
+            "test_metrics": STATE.get("test_metrics"),
+            "alarm": {"horizon": STATE["horizon"], "threshold": round(STATE["alarm_th"], 2),
+                      "available": STATE.get("clf") is not None}}
 
 
 @app.post("/api/predict")
@@ -118,6 +155,11 @@ def predict(req: PredictRequest):
     res = _predict(df)
     res["cycles"] = df["cycle"].astype(int).tolist() if "cycle" in df else list(range(1, len(df) + 1))
     return res
+
+
+@app.post("/api/explain")
+def explain(req: ExplainRequest):
+    return _explain(_frame(req.data), req.index)
 
 
 @app.get("/api/demo/engines")
@@ -138,6 +180,20 @@ def demo_engine(unit: int):
     res["rul_real"] = [real_last + (n - 1 - i) for i in range(n)]
     res["history"] = {c: g[c].tolist() for c in INPUT_COLS}
     return res
+
+
+@app.get("/api/demo/engines/{unit}/explain")
+def demo_engine_explain(unit: int, cycle: int | None = None):
+    g = STATE["demo"].get(unit)
+    if g is None:
+        raise HTTPException(404, "Motor de demostración no encontrado.")
+    index = None
+    if cycle is not None:
+        hits = np.flatnonzero(g["cycle"].to_numpy() == cycle)
+        if not len(hits):
+            raise HTTPException(422, "Ese ciclo no existe en el motor.")
+        index = int(hits[0])
+    return _explain(g[INPUT_COLS], index)
 
 
 app.mount("/", StaticFiles(directory=BASE / "static", html=True), name="static")

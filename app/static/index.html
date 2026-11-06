@@ -11,7 +11,7 @@
   <header class="top">
     <div class="wrap">
       <h1>Predictor de vida útil restante</h1>
-      <p class="sub">Motores turbofán · NASA C-MAPSS FD001 · XGBoost</p>
+      <p class="sub" id="sub">Motores turbofán · NASA C-MAPSS FD001</p>
     </div>
   </header>
 
@@ -31,7 +31,7 @@
       </div>
 
       <div id="pane-custom" hidden>
-        <p class="hint">Pega o sube el historial de un motor, un ciclo por fila: archivo de NASA (26 columnas, sin encabezado) o CSV con encabezado. Se necesitan al menos <code>setting1</code>, <code>setting2</code> y los sensores 2, 3, 4, 7, 8, 9, 11, 12, 13, 14, 15, 17, 20 y 21.</p>
+        <p class="hint">Pega o sube el historial de un motor, un ciclo por fila: archivo de NASA (26 columnas, sin encabezado) o CSV con encabezado. El historial debe empezar en el primer ciclo del motor (la línea base se calcula con sus primeros 10 ciclos). Se necesitan al menos <code>setting1</code>, <code>setting2</code> y los sensores 2, 3, 4, 7, 8, 9, 11, 12, 13, 14, 15, 17, 20 y 21.</p>
         <textarea id="raw" rows="7" spellcheck="false" placeholder="Pega aquí el historial del motor…"></textarea>
         <div class="row wrapping">
           <input type="file" id="file" accept=".txt,.csv,text/plain,text/csv">
@@ -63,12 +63,17 @@
         <article class="card">
           <h2>Estimación conservadora</h2>
           <p class="num"><span id="cons">–</span> <small>ciclos</small></p>
-          <p class="muted">Resta el margen con que el modelo sobreestimó en el 90 % de los motores de prueba.</p>
+          <p class="muted">Resta el margen con que el modelo sobreestimó en el 90 % de los ciclos de validación.</p>
         </article>
         <article class="card" id="status-card">
           <h2>Estado</h2>
           <p><span class="badge" id="badge">–</span></p>
           <p class="muted" id="advice"></p>
+        </article>
+        <article class="card" id="alarm-card" hidden>
+          <h2>Alarma de falla</h2>
+          <p class="num"><span id="prob">–</span><small>%</small></p>
+          <p class="muted" id="alarm-note"></p>
         </article>
         <article class="card" id="real-card" hidden>
           <h2>RUL real</h2>
@@ -78,6 +83,12 @@
       </section>
 
       <ul id="warnings" class="warnings"></ul>
+
+      <section class="panel" aria-label="Explicación de la predicción">
+        <h2>¿Por qué esta estimación?</h2>
+        <p class="hint" id="explain-note">Variables que más empujan la estimación en el ciclo elegido.</p>
+        <ul id="drivers" class="drivers"></ul>
+      </section>
 
       <section class="panel" aria-label="Evolución de la RUL">
         <h2>RUL estimada a lo largo de la vida del motor</h2>
@@ -94,7 +105,7 @@
     </div>
 
     <p class="foot">Los datos son simulados (NASA C-MAPSS, un solo modo de falla). Esta herramienta apoya la decisión de mantenimiento, no la reemplaza.
-      Los umbrales del estado son de referencia. Error del modelo en prueba: MAE 13,1 ciclos, RMSE 17,8 ciclos.</p>
+      Los umbrales del estado son de referencia. <span id="foot-metrics"></span></p>
   </main>
 
   <script src="app.js"></script>

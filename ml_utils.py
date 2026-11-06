@@ -1,0 +1,140 @@
+"""Utilidades compartidas por `entrenar_modelo.py` y `experimentos_semanas.py`.
+
+Datos, métricas y validación cruzada agrupada por motor (semana 7: validación de modelos).
+"""
+import os
+import time
+import warnings
+import zipfile
+import urllib.request
+
+import numpy as np
+import pandas as pd
+from sklearn.base import clone
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import GroupKFold
+
+warnings.filterwarnings("ignore")
+
+SEED = 42
+CAP = 125            # la RUL de entrenamiento se acota a 125 ciclos (RUL "piece-wise")
+N_SPLITS = 5
+COLS = ["unit", "cycle"] + [f"setting{i}" for i in range(1, 4)] + [f"sensor{i}" for i in range(1, 22)]
+FILES = ["train_FD001.txt", "test_FD001.txt", "RUL_FD001.txt"]
+FIG_DIR = "docs/figuras"
+
+
+# ---------------------------------------------------------------- datos
+def _locate(data_dir, name):
+    for root, _, files in os.walk(data_dir):
+        if name in files:
+            return os.path.join(root, name)
+    return None
+
+
+def ensure_data(data_dir="data"):
+    """Busca los archivos de C-MAPSS en `data_dir`; si faltan, intenta descargarlos."""
+    if all(_locate(data_dir, f) for f in FILES):
+        return
+    os.makedirs(data_dir, exist_ok=True)
+    zips = [
+        "https://phm-datasets.s3.amazonaws.com/NASA/6.+Turbofan+Engine+Degradation+Simulation+Data+Set.zip",
+        "https://data.nasa.gov/docs/legacy/CMAPSSData.zip",
+    ]
+    for url in zips:
+        try:
+            print("Descargando:", url)
+            urllib.request.urlretrieve(url, os.path.join(data_dir, "cmapss.zip"))
+            with zipfile.ZipFile(os.path.join(data_dir, "cmapss.zip")) as zf:
+                zf.extractall(data_dir)
+            for r, _, fs in os.walk(data_dir):          # el zip de NASA trae otro zip dentro
+                for f in fs:
+                    if f.lower().endswith(".zip") and f != "cmapss.zip":
+                        with zipfile.ZipFile(os.path.join(r, f)) as zf:
+                            zf.extractall(r)
+            if all(_locate(data_dir, f) for f in FILES):
+                return
+        except Exception as e:
+            print("  No se pudo descargar:", e)
+    mirror = "https://raw.githubusercontent.com/ericlrf/rul/main/CMAPSSData/"   # copia pública en GitHub
+    try:
+        for f in FILES:
+            print("Descargando (espejo GitHub):", f)
+            urllib.request.urlretrieve(mirror + f, os.path.join(data_dir, f))
+    except Exception as e:
+        print("  No se pudo descargar:", e)
+    if not all(_locate(data_dir, f) for f in FILES):
+        raise FileNotFoundError(f"Coloca {FILES} dentro de la carpeta '{data_dir}/'.")
+
+
+def load_data(data_dir="data"):
+    """Devuelve (train, test, rul_test). `train` incluye la columna RUL = T_max - cycle."""
+    ensure_data(data_dir)
+    rd = lambda n: pd.read_csv(_locate(data_dir, n), sep=r"\s+", header=None, names=COLS)
+    train, test = rd("train_FD001.txt"), rd("test_FD001.txt")
+    rul = pd.read_csv(_locate(data_dir, "RUL_FD001.txt"), header=None)[0].to_numpy(float)
+    train = train.sort_values(["unit", "cycle"]).reset_index(drop=True)
+    test = test.sort_values(["unit", "cycle"]).reset_index(drop=True)
+    train["RUL"] = train.groupby("unit")["cycle"].transform("max") - train["cycle"]
+    return train, test, rul
+
+
+def last_rows(df, X):
+    """Variables del último ciclo observado de cada motor (así se evalúa el conjunto de prueba)."""
+    return X.loc[df.groupby("unit").tail(1).index].reset_index(drop=True)
+
+
+# ---------------------------------------------------------------- métricas
+def rmse(y, p):
+    return float(np.sqrt(mean_squared_error(y, p)))
+
+
+def nasa_score(y_true, y_pred):
+    """Puntaje asimétrico de NASA: sobreestimar la RUL (d > 0) penaliza más que subestimarla."""
+    d = np.asarray(y_pred) - np.asarray(y_true)
+    return float(np.sum(np.where(d < 0, np.exp(-d / 13.0) - 1, np.exp(d / 10.0) - 1)))
+
+
+def all_metrics(y, p):
+    return {"MAE": mean_absolute_error(y, p), "RMSE": rmse(y, p), "R2": r2_score(y, p), "NASA": nasa_score(y, p)}
+
+
+# ---------------------------------------------------------------- validación cruzada por motor
+def cv_predict(model, X, y, groups, n_splits=N_SPLITS):
+    """Predicciones fuera de pliegue (OOF). `GroupKFold` evita que ciclos de un mismo motor caigan
+    en entrenamiento y validación a la vez."""
+    oof = np.zeros(len(X))
+    for tr, va in GroupKFold(n_splits=n_splits).split(X, y, groups):
+        m = clone(model).fit(X.iloc[tr], y.iloc[tr])
+        oof[va] = m.predict(X.iloc[va])
+    return oof
+
+
+def cv_report(oof, y_raw, groups, n_splits=N_SPLITS):
+    """Media y desviación entre pliegues, sobre la zona de interés (RUL real <= CAP).
+
+    Se compara contra la RUL real sin acotar: la zona cercana a la falla es la que importa para decidir
+    mantenimiento, y los ciclos de motor sano (RUL > CAP) diluirían el error.
+    """
+    y_raw = pd.Series(np.asarray(y_raw))
+    rows = []
+    for _, va in GroupKFold(n_splits=n_splits).split(oof, oof, groups):
+        keep = (y_raw.iloc[va] <= CAP).to_numpy()
+        rows.append(all_metrics(y_raw.iloc[va].to_numpy()[keep], np.clip(oof[va][keep], 0, CAP)))
+    df = pd.DataFrame(rows)
+    out = df.mean().to_dict()
+    out["RMSE_std"] = float(df["RMSE"].std())
+    return out
+
+
+def bootstrap_ci(y_true, y_pred, n=2000, seed=SEED, alpha=0.05):
+    """Intervalo de confianza (percentiles) de MAE, RMSE y NASA remuestreando los motores de prueba."""
+    rng = np.random.default_rng(seed)
+    y_true, y_pred = np.asarray(y_true), np.asarray(y_pred)
+    stats = {"MAE": [], "RMSE": [], "NASA": []}
+    for _ in range(n):
+        i = rng.integers(0, len(y_true), len(y_true))
+        stats["MAE"].append(mean_absolute_error(y_true[i], y_pred[i]))
+        stats["RMSE"].append(rmse(y_true[i], y_pred[i]))
+        stats["NASA"].append(nasa_score(y_true[i], y_pred[i]))
+    return {k: (float(np.quantile(v, alpha / 2)), float(np.quantile(v, 1 - alpha / 2))) for k, v in stats.items()}
