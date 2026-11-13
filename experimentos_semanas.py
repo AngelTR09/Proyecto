@@ -13,7 +13,8 @@ al modelo final y cuál solo se usa para analizar. La conclusión de cada una es
     python experimentos_semanas.py --semana 11     # CNN 1D (requiere tensorflow)
     python experimentos_semanas.py --semana todas
 
-La prueba (test) se imprime como referencia, pero ninguna decisión se toma con ella: se decide con la validación cruzada.
+Este script nunca toca los archivos de prueba: todo se decide con validación cruzada sobre el entrenamiento.
+La evaluación en prueba vive aparte, en `evaluar_final.py` (ver docs/PROTOCOLO.md).
 """
 import argparse
 import os
@@ -40,7 +41,7 @@ from sklearn.svm import SVC
 from xgboost import XGBClassifier, XGBRegressor
 
 from app.features import FEATURES, SENSORS, SETTINGS, build_features_multi, feature_label
-from ml_utils import (CAP, FIG_DIR, N_SPLITS, SEED, all_metrics, cv_predict, cv_report, last_rows, load_data)
+from ml_utils import (CAP, FIG_DIR, N_SPLITS, SEED, cv_predict, cv_report, load_train)
 
 OUT = "outputs"
 
@@ -59,11 +60,10 @@ def xgb_default():
 
 
 def context():
-    train, test, rul = load_data()
+    train = load_train()
     X = build_features_multi(train)
-    Xt = last_rows(test, build_features_multi(test))
     y_raw = train["RUL"].astype(float)
-    return train, test, rul, X, Xt, y_raw, y_raw.clip(upper=CAP), train["unit"].to_numpy()
+    return train, X, y_raw, y_raw.clip(upper=CAP), train["unit"].to_numpy()
 
 
 # =====================================================================================================
@@ -108,7 +108,7 @@ def _generic_features(df, kinds):
 
 
 def semana2():
-    train, test, rul, _, _, y_raw, y, groups = context()
+    train, _, y_raw, y, groups = context()
     v1 = ["raw", "mean5", "mean10", "std10", "diff", "slope10"]
     sets = {
         "A  sensores originales": ["raw"],
@@ -122,17 +122,14 @@ def semana2():
     rows = []
     for name, kinds in sets.items():
         if kinds is None:
-            Xa, Xl = build_features_multi(train), last_rows(test, build_features_multi(test))
+            Xa = build_features_multi(train)
         else:
             Xa = _generic_features(train, kinds)
-            Xl = last_rows(test, _generic_features(test, kinds))
         oof = cv_predict(xgb_default(), Xa, y, groups)
         r = cv_report(oof, y_raw, groups)
-        pt = np.clip(clone(xgb_default()).fit(Xa, y).predict(Xl), 0, None)
-        t = all_metrics(rul, pt)
         rows.append({"conjunto": name, "n_variables": Xa.shape[1], "CV_RMSE": r["RMSE"], "CV_RMSE_sd": r["RMSE_std"],
-                     "CV_MAE": r["MAE"], "CV_NASA": r["NASA"], "test_RMSE": t["RMSE"], "test_MAE": t["MAE"], "test_NASA": t["NASA"]})
-        print(f"{name:62s} CV RMSE {r['RMSE']:.2f} ± {r['RMSE_std']:.2f} | test RMSE {t['RMSE']:.2f}")
+                     "CV_MAE": r["MAE"], "CV_NASA": r["NASA"]})
+        print(f"{name:62s} CV RMSE {r['RMSE']:.2f} ± {r['RMSE_std']:.2f}")
     tbl = pd.DataFrame(rows)
     tbl.to_csv(f"{OUT}/s2_variables.csv", index=False)
     plt.figure(figsize=(8.5, 4))
@@ -157,10 +154,9 @@ def semana2():
 # Semana 3 y 5 · Clasificación binaria (regresión logística, SVM) frente a la alarma derivada de la regresión
 # =====================================================================================================
 def semana3():
-    train, test, rul, X, Xt, y_raw, y, groups = context()
+    train, X, y_raw, y, groups = context()
     H = 30
     yb = (y_raw.to_numpy() <= H).astype(int)
-    yb_t = (rul <= H).astype(int)
     P = lambda m: Pipeline([("sc", StandardScaler()), ("m", m)])
     clfs = {
         "Regresión logística": P(LogisticRegression(C=1.0, class_weight="balanced", max_iter=2000)),
@@ -177,13 +173,11 @@ def semana3():
         f2 = [precision_recall_fscore_support(yy, s >= t, beta=2, average="binary", zero_division=0)[2] for t in ths]
         return ths[int(np.argmax(f2))]
 
-    def summarize(name, s_cv, s_te, th):
+    def summarize(name, s_cv, th):
         p, r, f1, _ = precision_recall_fscore_support(yb, s_cv >= th, average="binary", zero_division=0)
         f2 = precision_recall_fscore_support(yb, s_cv >= th, beta=2, average="binary", zero_division=0)[2]
-        pt, rt, ft, _ = precision_recall_fscore_support(yb_t, s_te >= th, average="binary", zero_division=0)
         return {"modelo": name, "CV_AUC": roc_auc_score(yb, s_cv), "CV_AP": average_precision_score(yb, s_cv),
-                "CV_precision": p, "CV_recall": r, "CV_F1": f1, "CV_F2": f2,
-                "test_AUC": roc_auc_score(yb_t, s_te), "test_precision": pt, "test_recall": rt, "test_F1": ft}
+                "CV_precision": p, "CV_recall": r, "CV_F1": f1, "CV_F2": f2}
 
     rows = []
     for name, c in clfs.items():
@@ -191,16 +185,14 @@ def semana3():
         for a, b in GroupKFold(N_SPLITS).split(X, yb, groups):
             oof[b] = score(clone(c).fit(X.iloc[a], yb[a]), X.iloc[b])
         th = best_threshold(oof, yb)
-        s_te = score(clone(c).fit(X, yb), Xt)
-        rows.append(summarize(name, oof, s_te, th))
+        rows.append(summarize(name, oof, th))
         print(name, {k: round(v, 3) for k, v in rows[-1].items() if k != "modelo"})
     # Alarma que sale de la regresión (RUL predicha <= umbral): ¿aporta algo el clasificador?
     oof_r = cv_predict(xgb_default(), X, y, groups)
-    te_r = np.clip(clone(xgb_default()).fit(X, y).predict(Xt), 0, None)
-    s_cv, s_te = -oof_r, -te_r
+    s_cv = -oof_r
     ths = np.linspace(-60, -5, 111)
     f2 = [precision_recall_fscore_support(yb, s_cv >= t, beta=2, average="binary", zero_division=0)[2] for t in ths]
-    rows.append(summarize("Regresión XGBoost (RUL predicha ≤ umbral)", s_cv, s_te, ths[int(np.argmax(f2))]))
+    rows.append(summarize("Regresión XGBoost (RUL predicha ≤ umbral)", s_cv, ths[int(np.argmax(f2))]))
     print(rows[-1]["modelo"], {k: round(v, 3) for k, v in rows[-1].items() if k != "modelo"})
     pd.DataFrame(rows).to_csv(f"{OUT}/s3_alarma_modelos.csv", index=False)
 
@@ -212,22 +204,22 @@ def semana7():
     import joblib
     from lime.lime_tabular import LimeTabularExplainer
     from app.explain import top_drivers
-    train, test, rul, X, Xt, y_raw, y, groups = context()
+    train, X, y_raw, y, groups = context()
     bundle = joblib.load("models/modelo_rul_fd001.joblib")
     model = bundle["model"]
-    order = np.argsort(rul)
-    picks = {"cerca de la falla": int(order[2]), "en la mitad de la vida": int(order[50]), "motor sano": int(order[-3])}
+    order = np.argsort(y_raw.to_numpy())      # filas del entrenamiento, de la más cercana a la falla a la más sana
+    picks = {"cerca de la falla": int(order[2]), "en la mitad de la vida": int(order[len(order) // 2]), "motor sano": int(order[-3])}
     explainer = LimeTabularExplainer(X.to_numpy(), feature_names=list(X.columns), mode="regression",
                                      discretize_continuous=False, random_state=SEED)
     rows = []
     for tag, i in picks.items():
-        row = Xt.iloc[[i]]
+        row = X.iloc[[i]]
         shap = top_drivers(model, row, k=6)["drivers"]
         lime = explainer.explain_instance(row.to_numpy()[0], model.predict, num_features=6, num_samples=3000)
         lime_top = [f for f, _ in lime.as_list()]
         shap_top = [d["feature"] for d in shap]
         overlap = len(set(shap_top) & set(lime_top))
-        rows.append({"caso": tag, "motor": i + 1, "RUL_real": rul[i], "RUL_pred": float(model.predict(row)[0]),
+        rows.append({"caso": tag, "motor": int(train["unit"].iloc[i]), "RUL_real": float(y_raw.iloc[i]), "RUL_pred": float(model.predict(row)[0]),
                      "coinciden_en_top6": overlap,
                      "SHAP_top3": " | ".join(feature_label(f) for f in shap_top[:3]),
                      "LIME_top3": " | ".join(feature_label(f.split(" ")[0]) for f in lime_top[:3])})
@@ -252,7 +244,7 @@ class KMeansDistances(BaseEstimator, TransformerMixin):
 
 
 def semana9():
-    train, test, rul, X, Xt, y_raw, y, groups = context()
+    train, X, y_raw, y, groups = context()
     rel = X[[c for c in X.columns if c.endswith("_rel0")]].to_numpy()
     Z = StandardScaler().fit_transform(rel)
     rng = np.random.default_rng(SEED)
@@ -296,8 +288,7 @@ def semana9():
                     ("XGBoost + distancias K-Means k=8", with_km(8))]:
         oof = cv_predict(m, X, y, groups)
         r = cv_report(oof, y_raw, groups)
-        pt = np.clip(clone(m).fit(X, y).predict(Xt), 0, None)
-        out.append({"modelo": name, "CV_RMSE": r["RMSE"], "CV_RMSE_sd": r["RMSE_std"], "test_RMSE": all_metrics(rul, pt)["RMSE"]})
+        out.append({"modelo": name, "CV_RMSE": r["RMSE"], "CV_RMSE_sd": r["RMSE_std"]})
         print(out[-1])
     pd.DataFrame(out).to_csv(f"{OUT}/s9_kmeans_como_variable.csv", index=False)
 
@@ -306,7 +297,7 @@ def semana9():
 # Semana 10 · PCA y t-SNE
 # =====================================================================================================
 def semana10():
-    train, test, rul, X, Xt, y_raw, y, groups = context()
+    train, X, y_raw, y, groups = context()
     Xs = StandardScaler().fit_transform(X)
     pca = PCA(random_state=SEED).fit(Xs)
     cum = np.cumsum(pca.explained_variance_ratio_)
@@ -347,8 +338,7 @@ def semana10():
     for name, m in cfg.items():
         oof = cv_predict(m, X, y, groups)
         r = cv_report(oof, y_raw, groups)
-        pt = np.clip(clone(m).fit(X, y).predict(Xt), 0, None)
-        rows.append({"modelo": name, "CV_RMSE": r["RMSE"], "CV_RMSE_sd": r["RMSE_std"], "test_RMSE": all_metrics(rul, pt)["RMSE"]})
+        rows.append({"modelo": name, "CV_RMSE": r["RMSE"], "CV_RMSE_sd": r["RMSE_std"]})
         print(rows[-1])
     pd.DataFrame(rows).to_csv(f"{OUT}/s10_pca_en_pipeline.csv", index=False)
 
@@ -356,7 +346,7 @@ def semana10():
 # =====================================================================================================
 # Semana 11 · Red neuronal convolucional 1D sobre ventanas de sensores
 # =====================================================================================================
-def semana11(window=30, seeds=5):
+def semana11(window=30):
     os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
     try:
         import keras
@@ -364,7 +354,7 @@ def semana11(window=30, seeds=5):
     except ImportError:
         print("Esta semana necesita TensorFlow/Keras:  pip install tensorflow-cpu")
         return
-    train, test, rul, _, _, y_raw, y, groups = context()
+    train, _, y_raw, y, groups = context()
     ya = y.to_numpy()
 
     def baseline_rel(df):             # mismo concepto que rel0: sensor menos la media de sus primeros 10 ciclos
@@ -388,10 +378,9 @@ def semana11(window=30, seeds=5):
                 X[ix[i]] = pad[i:i + window]
         return X
 
-    Rtr, Rte = baseline_rel(train), baseline_rel(test)
+    Rtr = baseline_rel(train)
     sd = Rtr.std()
     Xw = windows(Rtr / sd, train)
-    Xte = windows(Rte / sd, test)[test.reset_index().groupby("unit")["index"].last().to_numpy()]
 
     def build(seed):
         keras.utils.set_random_seed(seed)
@@ -413,10 +402,8 @@ def semana11(window=30, seeds=5):
     for k, (a, b) in enumerate(GroupKFold(N_SPLITS).split(Xw, ya, groups)):
         oof[b] = fit(Xw[a], ya[a], k).predict(Xw[b], verbose=0).ravel() * CAP
     r = cv_report(oof, y_raw, groups)
-    preds = [np.clip(fit(Xw, ya, 100 + s).predict(Xte, verbose=0).ravel() * CAP, 0, None) for s in range(seeds)]
-    t = all_metrics(rul, np.mean(preds, 0))
-    res = pd.DataFrame([{"modelo": f"CNN 1D (ventana {window}, media de {seeds} semillas en prueba)", "CV_RMSE": r["RMSE"],
-                         "CV_RMSE_sd": r["RMSE_std"], "CV_MAE": r["MAE"], "test_RMSE": t["RMSE"], "test_MAE": t["MAE"]}])
+    res = pd.DataFrame([{"modelo": f"CNN 1D (ventana {window})", "CV_RMSE": r["RMSE"],
+                         "CV_RMSE_sd": r["RMSE_std"], "CV_MAE": r["MAE"]}])
     res.to_csv(f"{OUT}/s11_cnn.csv", index=False)
     print(res.round(2).to_string(index=False))
 

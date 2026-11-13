@@ -9,6 +9,10 @@ base del informe v1). Cada bloque indica la semana del curso de Machine Learning
     python entrenar_modelo.py --rapido        # prueba de humo (omite SVR y Random Forest)
 
 Genera `models/modelo_rul_fd001.joblib` (lo que usa la API), tablas en `outputs/` y figuras en `docs/figuras/`.
+
+Este script NO lee ningún archivo de prueba. Toda decisión (modelo, hiperparámetros, margen, umbral de alarma)
+sale de la validación cruzada por motor sobre el entrenamiento. La prueba se evalúa después, una sola vez y
+con el modelo ya guardado, en `evaluar_final.py` (criterios en `docs/PROTOCOLO.md`).
 """
 import argparse
 import json
@@ -36,8 +40,7 @@ from xgboost import XGBClassifier, XGBRegressor
 
 from app.explain import xgb_component
 from app.features import FEATURES, build_features_multi, feature_label
-from ml_utils import (CAP, FIG_DIR, N_SPLITS, SEED, all_metrics, bootstrap_ci, cv_predict, cv_report,
-                      last_rows, load_data, rmse)
+from ml_utils import CAP, FIG_DIR, N_SPLITS, SEED, cv_predict, cv_report, load_train, rmse
 
 ALARM_HORIZON = 30          # "falla en <= 30 ciclos" (semana 3: clasificación binaria)
 
@@ -83,15 +86,13 @@ def main():
     np.random.seed(SEED)
 
     # ------------------------------------------------------------ datos y variables (semanas 1 y 2)
-    train, test, rul_test = load_data(args.data_dir)
+    train = load_train(args.data_dir)
     t0 = time.time()
     X = build_features_multi(train)
-    X_test = last_rows(test, build_features_multi(test))
     y_raw = train["RUL"].astype(float)
     y = y_raw.clip(upper=CAP)
     groups = train["unit"].to_numpy()
-    assert len(X_test) == len(rul_test) == test["unit"].nunique()
-    print(f"Variables: {X.shape[1]} | filas train {len(X)} | motores test {len(X_test)} | {time.time()-t0:.0f}s")
+    print(f"Variables: {X.shape[1]} | filas train {len(X)} | motores {train['unit'].nunique()} | {time.time()-t0:.0f}s")
 
     # ------------------------------------------------------------ familias de modelos (semanas 3 a 6)
     models = {
@@ -160,45 +161,17 @@ def main():
         final, final_name = mlp_final, "MLP"
     final.fit(X, y)
 
-    # ------------------------------------------------------------ prueba, una sola vez (semana 7)
-    pred = np.clip(final.predict(X_test), 0, None)
-    base = clone(models["Ridge"]).fit(X, y)
-    pred_ridge = np.clip(base.predict(X_test), 0, None)
-    ci = bootstrap_ci(rul_test, pred)
-    test_res = pd.DataFrame({final_name: all_metrics(rul_test, pred), "Ridge (referencia)": all_metrics(rul_test, pred_ridge)}).T
-    print(test_res.round(3))
-    print("IC 95 % (bootstrap sobre motores):", {k: tuple(round(x, 2) for x in v) for k, v in ci.items()})
-    test_res.to_csv("outputs/resultados_test.csv")
-    pd.DataFrame(ci, index=["inf", "sup"]).T.to_csv("outputs/resultados_test_ic95.csv")
-    pd.DataFrame({"unit": np.arange(1, len(pred) + 1), "RUL_real": rul_test, "RUL_pred": pred}).to_csv(
-        "outputs/predicciones_test.csv", index=False)
-
-    err = pred - rul_test
-    bins = pd.cut(rul_test, [-1, 25, 50, 75, 100, 200], labels=["0-25", "26-50", "51-75", "76-100", ">100"])
-    by_zone = pd.DataFrame({"zona": bins, "abs": np.abs(err), "err": err}).groupby("zona", observed=True).agg(
-        n=("err", "size"), MAE=("abs", "mean"), sesgo=("err", "mean"))
-    by_zone.to_csv("outputs/error_por_zona.csv")
-    print(by_zone.round(2))
-
-    fig, ax = plt.subplots(1, 3, figsize=(15, 4))
-    ax[0].scatter(rul_test, pred, alpha=0.7)
-    lim = [0, max(rul_test.max(), pred.max()) + 5]
-    ax[0].plot(lim, lim, "r--"); ax[0].set_xlabel("RUL real"); ax[0].set_ylabel("RUL predicha"); ax[0].set_title("Prueba: predicho vs. real")
-    ax[1].hist(err, bins=20, color="#C44E52"); ax[1].axvline(0, color="k")
-    ax[1].set_title("Error (predicha − real)\n> 0 = sobreestima (más riesgoso)"); ax[1].set_xlabel("ciclos")
-    ax[2].bar(by_zone.index.astype(str), by_zone["MAE"], color="#4C72B0"); ax[2].set_title("MAE por zona de RUL real"); ax[2].set_xlabel("RUL real")
-    savefig("prueba_resultados.png")
+    # (La evaluación en prueba no está aquí a propósito: ver evaluar_final.py y docs/PROTOCOLO.md.)
 
     # Margen conservador de la API: percentil 90 de la sobreestimación en validación (no en la prueba).
     ens_oof = oofs[best] if best in oofs else oofs["Ensamble XGB+MLP"]
     zone = (y_raw <= CAP).to_numpy()
     over = np.clip(ens_oof[zone], 0, CAP) - y_raw.to_numpy()[zone]
     p90 = float(np.quantile(over, 0.90))
-    print(f"Sobreestimación P90 en validación: {p90:.1f} ciclos | en prueba: {np.quantile(err, 0.9):.1f} ciclos")
+    print(f"Sobreestimación P90 en validación: {p90:.1f} ciclos")
 
     # ------------------------------------------------------------ alarma binaria (semanas 3, 5 y 7)
     yb = (y_raw.to_numpy() <= ALARM_HORIZON).astype(int)
-    yb_test = (rul_test <= ALARM_HORIZON).astype(int)
     clf = XGBClassifier(n_estimators=200, learning_rate=0.05, max_depth=4, subsample=0.8, colsample_bytree=0.7,
                         random_state=SEED, n_jobs=-1, verbosity=0)
     oof_p = np.zeros(len(yb))
@@ -208,9 +181,8 @@ def main():
     f2 = [precision_recall_fscore_support(yb, oof_p >= t, beta=2, average="binary", zero_division=0)[2] for t in ths]
     th = float(ths[int(np.argmax(f2))])      # F2: perder una falla cuesta más que una falsa alarma
     clf.fit(X, yb)
-    p_test = clf.predict_proba(X_test)[:, 1]
     rows = []
-    for nombre, yy, pp in [("validación cruzada (filas)", yb, oof_p), ("prueba (100 motores)", yb_test, p_test)]:
+    for nombre, yy, pp in [("validación cruzada (filas)", yb, oof_p)]:
         pr, rc, f1, _ = precision_recall_fscore_support(yy, pp >= th, average="binary", zero_division=0)
         tn, fp, fn, tp = confusion_matrix(yy, pp >= th).ravel()
         rows.append({"conjunto": nombre, "umbral": th, "AUC": roc_auc_score(yy, pp), "AP": average_precision_score(yy, pp),
@@ -258,12 +230,11 @@ def main():
     # ------------------------------------------------------------ guardado
     bundle = {"model": final, "features": FEATURES, "rul_cap": CAP, "name": final_name,
               "classifier": clf, "alarm_horizon": ALARM_HORIZON, "alarm_threshold": th,
-              "overestimate_p90": p90,
-              "test_metrics": {k: float(v) for k, v in all_metrics(rul_test, pred).items()}}
+              "overestimate_p90": p90}
     joblib.dump(bundle, "models/modelo_rul_fd001.joblib", compress=3)
     with open("outputs/resumen.json", "w", encoding="utf-8") as fh:
         json.dump({"modelo": final_name, "xgb": px, "mlp": {k: (list(v) if isinstance(v, tuple) else v) for k, v in pm.items()},
-                   "p90_validacion": p90, "umbral_alarma": th, "test": bundle["test_metrics"]}, fh, indent=2, ensure_ascii=False)
+                   "p90_validacion": p90, "umbral_alarma": th}, fh, indent=2, ensure_ascii=False)
     print("Guardado: models/modelo_rul_fd001.joblib")
 
 
