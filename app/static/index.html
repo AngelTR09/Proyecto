@@ -13,15 +13,37 @@
       <h1>Predictor de vida útil restante</h1>
       <p class="sub" id="sub">Motores turbofán · NASA C-MAPSS FD001</p>
       <nav class="nav" aria-label="Secciones">
-        <a href="#predictor" class="active">Predictor</a>
-        <a href="#sensores">Sensores</a>
-        <a href="#modelado">Modelado</a>
+        <a href="#sensores" class="active">1. Sensores</a>
+        <a href="#predictor">2. Predicción</a>
+        <a href="#modelado">3. Modelado</a>
       </nav>
     </div>
   </header>
 
   <main class="wrap">
-    <div id="view-predictor">
+    <div id="view-sensores">
+      <section class="panel" aria-label="Los sensores del motor">
+        <h2>Los 14 sensores que lee el modelo</h2>
+        <p class="hint">Cada ciclo (un vuelo) el motor entrega 21 lecturas. El modelo usa 14, las que cambian con el desgaste; las otras 7 son constantes o casi constantes en FD001 (el sensor 6 varía apenas) y no aportan información. Toca un número en el esquema: cada ficha explica qué mide, por qué importa y cómo lo analiza el modelo (qué variables saca de él y cuánto pesan).</p>
+        <div id="engine-diagram" class="diagram"></div>
+        <div id="sensor-legend" class="chips" role="group" aria-label="Filtrar por tipo"></div>
+        <div id="sensor-cards" class="scards"></div>
+      </section>
+      <section class="panel" id="sensor-detail" aria-live="polite"></section>
+      <section class="panel" aria-label="Glosario">
+        <h2>Para leer los datos</h2>
+        <ul class="gloss">
+          <li><b>Ciclo:</b> un vuelo completo del motor (despegue, crucero y aterrizaje).</li>
+          <li><b>Total vs. estática:</b> la presión o temperatura total incluye el efecto del movimiento del aire; la estática es la del aire quieto.</li>
+          <li><b>Corregida:</b> lectura normalizada por altitud y clima, para poder comparar vuelos distintos.</li>
+          <li><b>°R (Rankine):</b> escala absoluta de temperatura en grados Fahrenheit. °C = (°R − 491,67) × 5/9.</li>
+          <li><b>FD001:</b> subconjunto de C-MAPSS con una sola condición de operación y un solo modo de falla (degradación del HPC).</li>
+        </ul>
+      </section>
+      <p class="next"><a class="btn" href="#predictor">Siguiente: ver la predicción →</a></p>
+    </div>
+
+    <div id="view-predictor" hidden>
     <p class="notice" role="note"><b>Alcance del modelo.</b> Se entrenó y validó con dos modos de falla (conjuntos FD001 y FD003 de NASA), ambos con un solo régimen de operación. Un modelo entrenado con un solo modo de falla sobreestimó la vida restante en unos 54 ciclos cuando se probó con el otro; por eso se entrena con los dos. Esta página supone un único régimen de operación; para motores que operan en varios regímenes de vuelo (FD002 y FD004) existe un modelo aparte, probado en investigación, que todavía no se usa aquí. No uses esta estimación para ellos.</p>
     <section class="panel" aria-label="Origen de los datos">
       <div class="tabs" role="tablist">
@@ -110,28 +132,8 @@
         <div id="chart-sensor" class="chart"></div>
       </section>
     </div>
+      <p class="next"><a class="ghostlink" href="#sensores">← Volver a los sensores</a> <a class="btn" href="#modelado">Siguiente: el modelado →</a></p>
     </div><!-- /view-predictor -->
-
-    <div id="view-sensores" hidden>
-      <section class="panel" aria-label="Los sensores del motor">
-        <h2>Los 14 sensores que lee el modelo</h2>
-        <p class="hint">Cada ciclo (un vuelo) el motor entrega 21 lecturas. El modelo usa 14, las que cambian con el desgaste; las otras 7 son constantes o casi constantes en FD001 (el sensor 6 varía apenas) y no aportan información. Toca un número en el esquema: cada ficha explica qué mide, por qué importa y cómo lo analiza el modelo (qué variables saca de él y cuánto pesan).</p>
-        <div id="engine-diagram" class="diagram"></div>
-        <div id="sensor-legend" class="chips" role="group" aria-label="Filtrar por tipo"></div>
-        <div id="sensor-cards" class="scards"></div>
-      </section>
-      <section class="panel" id="sensor-detail" aria-live="polite"></section>
-      <section class="panel" aria-label="Glosario">
-        <h2>Para leer los datos</h2>
-        <ul class="gloss">
-          <li><b>Ciclo:</b> un vuelo completo del motor (despegue, crucero y aterrizaje).</li>
-          <li><b>Total vs. estática:</b> la presión o temperatura total incluye el efecto del movimiento del aire; la estática es la del aire quieto.</li>
-          <li><b>Corregida:</b> lectura normalizada por altitud y clima, para poder comparar vuelos distintos.</li>
-          <li><b>°R (Rankine):</b> escala absoluta de temperatura en grados Fahrenheit. °C = (°R − 491,67) × 5/9.</li>
-          <li><b>FD001:</b> subconjunto de C-MAPSS con una sola condición de operación y un solo modo de falla (degradación del HPC).</li>
-        </ul>
-      </section>
-    </div>
 
     <div id="view-modelado" hidden>
       <section class="panel" aria-label="De los sensores a las variables">
@@ -192,7 +194,7 @@
       </section>
     </div>
 
-    <p class="foot">Los datos son simulados (NASA C-MAPSS, un solo modo de falla). Esta herramienta apoya la decisión de mantenimiento, no la reemplaza.
+    <p class="foot">Los datos son simulados (NASA C-MAPSS, dos modos de falla en el entrenamiento). Esta herramienta apoya la decisión de mantenimiento, no la reemplaza.
       Los umbrales del estado son de referencia. <span id="foot-metrics"></span></p>
   </main>
 

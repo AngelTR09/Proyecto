@@ -266,9 +266,9 @@ function initSensors() {
 }
 
 // ---------- navegación entre secciones ----------
-const VIEWS = ["predictor", "sensores", "modelado"];
+const VIEWS = ["sensores", "predictor", "modelado"];
 function showView() {
-  const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "predictor";
+  const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "sensores";
   VIEWS.forEach((k) => {
     $(`view-${k}`).hidden = k !== v;
     const a = document.querySelector(`.nav a[href="#${k}"]`);
@@ -276,6 +276,7 @@ function showView() {
     a.toggleAttribute("aria-current", k === v);
   });
   if (v === "sensores") drawLive();
+  window.scrollTo(0, 0);
 }
 
 initSensors();

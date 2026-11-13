@@ -146,3 +146,7 @@ dd { margin: 2px 0 0; }
 .imp li.main span:first-child { font-weight: 700; }
 .imp .val { text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) { .imp li { grid-template-columns: 1fr 56px; } .imp li .bar { grid-column: 1 / -1; } }
+.next { display: flex; gap: 12px; justify-content: flex-end; align-items: center; margin: 4px 0 16px; }
+.btn { background: var(--accent); color: var(--accent-text); padding: 9px 18px; border-radius: 8px; font-weight: 700; text-decoration: none; }
+.btn:hover { filter: brightness(1.1); }
+.ghostlink { color: var(--accent); text-decoration: none; font-weight: 600; margin-right: auto; }
