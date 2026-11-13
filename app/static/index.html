@@ -22,7 +22,7 @@
 
   <main class="wrap">
     <div id="view-predictor">
-    <p class="notice" role="note"><b>Alcance del modelo.</b> Se entrenó y validó con dos modos de falla (conjuntos FD001 y FD003 de NASA), ambos con un solo régimen de operación. Un modelo entrenado con un solo modo de falla sobreestimó la vida restante en unos 54 ciclos cuando se probó con el otro; por eso se entrena con los dos. No se ha comprobado con motores que operan en varios regímenes de vuelo (FD002 y FD004): no uses esta estimación para ellos.</p>
+    <p class="notice" role="note"><b>Alcance del modelo.</b> Se entrenó y validó con dos modos de falla (conjuntos FD001 y FD003 de NASA), ambos con un solo régimen de operación. Un modelo entrenado con un solo modo de falla sobreestimó la vida restante en unos 54 ciclos cuando se probó con el otro; por eso se entrena con los dos. Esta página supone un único régimen de operación; para motores que operan en varios regímenes de vuelo (FD002 y FD004) existe un modelo aparte, probado en investigación, que todavía no se usa aquí. No uses esta estimación para ellos.</p>
     <section class="panel" aria-label="Origen de los datos">
       <div class="tabs" role="tablist">
         <button class="tab active" id="tab-demo" role="tab" aria-selected="true">Motor de demostración</button>
@@ -147,16 +147,14 @@
 
       <section class="panel" aria-label="Comparación de modelos">
         <h2>2. Qué modelos se compararon</h2>
-        <p class="hint">Validación cruzada por motor (5 pliegues; ningún motor aparece a la vez en entrenamiento y validación), en la zona donde decide el mantenimiento: RUL real de hasta 125 ciclos. Menor es mejor.</p>
+        <p class="hint">Validación cruzada por motor sobre los 200 motores de FD001 y FD003 (5 pliegues; ningún motor aparece a la vez en entrenamiento y validación), en la zona donde decide el mantenimiento: RUL real de hasta 125 ciclos. Menor es mejor. Con tantas filas se omitieron SVR y Random Forest, que antes quedaron a la par de XGBoost.</p>
         <table class="tbl">
           <thead><tr><th>Modelo</th><th>RMSE (ciclos)</th><th>MAE</th><th>Puntaje NASA</th></tr></thead>
           <tbody>
-            <tr><td>Ridge (línea base)</td><td>16,01 ± 0,58</td><td>13,14</td><td>10 082</td></tr>
-            <tr><td>SVR</td><td>12,56 ± 0,52</td><td>9,40</td><td>7 103</td></tr>
-            <tr><td>XGBoost</td><td>12,34 ± 0,55</td><td>9,09</td><td>6 205</td></tr>
-            <tr><td>Random Forest</td><td>12,28 ± 0,51</td><td>9,06</td><td>6 041</td></tr>
-            <tr><td>MLP</td><td>12,06 ± 0,41</td><td>8,90</td><td>5 628</td></tr>
-            <tr class="best"><td>Ensamble XGBoost + MLP (el que se usa)</td><td>11,84 ± 0,49</td><td>8,63</td><td>5 417</td></tr>
+            <tr><td>Ridge (línea base)</td><td>16,72 ± 0,69</td><td>13,62</td><td>22 882</td></tr>
+            <tr><td>XGBoost</td><td>12,04 ± 0,61</td><td>8,91</td><td>11 510</td></tr>
+            <tr><td>MLP</td><td>11,52 ± 0,44</td><td>8,42</td><td>10 116</td></tr>
+            <tr class="best"><td>Ensamble XGBoost + MLP (el que se usa)</td><td>11,22 ± 0,43</td><td>8,14</td><td>9 572</td></tr>
           </tbody>
         </table>
         <p class="hint">El «±» es la desviación entre pliegues. Entre los modelos de árboles y redes las diferencias son pequeñas; lo que separa claramente es pasar del modelo lineal a uno no lineal.</p>
@@ -164,13 +162,13 @@
 
       <section class="panel" aria-label="Qué sensores pesan">
         <h2>3. Qué sensores pesan en la predicción</h2>
-        <p class="hint">Contribución media de cada variable (valores SHAP del componente XGBoost). Domina el cambio del sensor 11 (presión estática a la salida del compresor) respecto a su línea base, con 8,5 ciclos de contribución media, más de dos veces la siguiente: el nivel suavizado de los sensores 3 y 4 (T30 y T50).</p>
+        <p class="hint">Contribución media de cada variable (valores SHAP del componente XGBoost). Domina el cambio del sensor 11 (presión estática a la salida del compresor) respecto a su línea base, con unos 9,6 ciclos de contribución media, más del doble que la siguiente: el cambio del sensor 4 (T50), seguido del nivel suavizado de los sensores 17 y 3.</p>
         <figure class="mfig"><img src="img/modelado/shap_global.png" alt="Variables que más pesan en la predicción" loading="lazy"></figure>
       </section>
 
       <section class="panel" aria-label="Recorte de la RUL">
         <h2>4. Recorte de la vida restante</h2>
-        <p class="hint">Mientras el motor está sano no hay desgaste que medir, así que el modelo se entrena con la RUL acotada a un tope. Se probó con varios valores, siempre en validación cruzada y comparando con la misma RUL real (≤ 125).</p>
+        <p class="hint">Mientras el motor está sano no hay desgaste que medir, así que el modelo se entrena con la RUL acotada a un tope. Se probó con varios valores (con los datos de FD001), siempre en validación cruzada y comparando con la misma RUL real (≤ 125).</p>
         <table class="tbl">
           <thead><tr><th>Tope</th><th>RMSE</th><th>Sesgo con 76–100 ciclos restantes</th><th>Diferencia vs 125 (IC 95 %)</th></tr></thead>
           <tbody>
@@ -184,11 +182,13 @@
         <p class="hint">Sesgo positivo = sobreestima la vida restante, que es lo peligroso. Por eso, con un motor saludable la página muestra «≥ 110» y no un número exacto. También se probaron una calibración isotónica y una cota por regresión cuantílica; no mejoraron y se descartaron.</p>
       </section>
 
-      <section class="panel" aria-label="Prueba con otro modo de falla">
-        <h2>5. Qué pasa con un modo de falla nuevo</h2>
-        <p class="hint">Con el modelo ya fijado se evaluó una sola vez en FD003, un conjunto que no se usó para decidir nada y cuyos motores fallan por dos causas distintas. A la izquierda, FD001, el conjunto donde se entrenó (esa prueba ya se había visto, así que es solo referencia).</p>
-        <figure class="mfig"><img src="img/modelado/prueba_resultados.png" alt="RUL predicha frente a real en FD001 y FD003" loading="lazy"></figure>
-        <p>En FD003 el error es el triple (RMSE 37,0 frente a 14,1) y, cerca de la falla, el modelo sobreestima la vida restante en unos 54 ciclos. Un chequeo con solo los datos de entrenamiento de FD003 muestra que no es culpa de los sensores: si el modelo se entrena también con ese modo de falla, el error vuelve a 11,7. El problema es que lo que no se vio en el entrenamiento no se reconoce.</p>
+      <section class="panel" aria-label="Otros modos de falla y regímenes">
+        <h2>5. Otros modos de falla y otros regímenes de vuelo</h2>
+        <p class="hint">Los datos de NASA vienen en cuatro conjuntos: FD001 y FD003 con una sola condición de vuelo (FD003 suma un segundo modo de falla), y FD002 y FD004 con seis condiciones. Con el modelo ya fijado se evaluó una sola vez en cada conjunto que todavía no se había mirado.</p>
+        <figure class="mfig"><img src="img/modelado/prueba_resultados.png" alt="RUL predicha frente a real en FD003, FD002 y FD004" loading="lazy"></figure>
+        <p><b>Un solo modo de falla no basta.</b> El modelo entrenado solo con FD001 falló en FD003 (arriba a la izquierda): cerca de la falla sobreestimó la vida restante en unos 54 ciclos. No era culpa de los sensores, porque entrenar también con FD003 dejó el error en 11,1 sin empeorar FD001. Por eso el modelo de esta página se entrena con los dos modos (arriba a la derecha; esa prueba ya no es virgen, es solo referencia).</p>
+        <p><b>Varios regímenes de vuelo exigen normalizar.</b> En FD002 y FD004 los sensores saltan según la condición de vuelo y ese salto tapa el desgaste: sin corregirlo casi no hay relación con la vida restante. Estandarizando cada sensor dentro de su régimen, un modelo aparte alcanzó, en conjuntos que nunca había visto, un RMSE de 11,5 (FD002) y 12,7 (FD004) con RUL real hasta 125. Ese modelo es de investigación y esta página todavía no lo usa.</p>
+        <p class="hint">Las nubes de puntos se aplanan cerca de 110: el modelo no distingue entre motores muy sanos, y por eso la página muestra «≥ 110».</p>
       </section>
     </div>
 

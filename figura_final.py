@@ -6,14 +6,22 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-fig, ax = plt.subplots(1, 2, figsize=(11, 4.4), sharey=True)
-for a, (sub, tit) in zip(ax, [("FD001", "FD001 (prueba ya vista; referencia)"), ("FD003", "FD003 (conjunto virgen; otro modo de falla)")]):
-    d = pd.read_csv(f"docs/resultados/final_{sub}_predicciones.csv")
-    m = json.load(open(f"docs/resultados/final_{sub}.json", encoding="utf8"))["contra_RUL_real"]
-    a.scatter(d["RUL_real"], d["RUL_pred"], alpha=.7, color="#4C72B0")
-    lim = [0, max(d["RUL_real"].max(), d["RUL_pred"].max()) + 5]
-    a.plot(lim, lim, "r--", label="predicción perfecta")
-    a.set_title(f"{tit}\nRMSE {m['RMSE']:.1f} · MAE {m['MAE']:.1f}", fontsize=10)
-    a.set_xlabel("RUL real (ciclos)")
-ax[0].set_ylabel("RUL predicha (ciclos)"); ax[0].legend()
+R = "docs/resultados"
+PANELES = [("final_FD003", "FD003 con el modelo de un solo modo (FD001)\n(conjunto virgen en ese momento)"),
+           ("final_fase2_FD003", "FD003 con el modelo FD001 + FD003\n(ya no virgen: solo referencia)"),
+           ("final_regimenes_FD002", "FD002 con normalización por régimen\n(conjunto virgen)"),
+           ("final_regimenes_FD004", "FD004 con normalización por régimen\n(conjunto virgen)")]
+fig, ax = plt.subplots(2, 2, figsize=(11, 8.6), sharex=True, sharey=True)
+for a, (base, tit) in zip(ax.ravel(), PANELES):
+    d = pd.read_csv(f"{R}/{base}_predicciones.csv")
+    j = json.load(open(f"{R}/{base}.json", encoding="utf8"))
+    z = d["RUL_real"] <= 125
+    rmse125 = (((d["RUL_pred"].clip(upper=125) - d["RUL_real"])[z]) ** 2).mean() ** .5
+    a.scatter(d["RUL_real"], d["RUL_pred"], alpha=.55, s=14, color="#4C72B0")
+    a.plot([0, 200], [0, 200], "r--", lw=1)
+    a.axvline(125, color="gray", ls=":", lw=1)
+    a.set_title(f"{tit}\nRMSE con RUL real ≤ 125: {rmse125:.1f}", fontsize=9.5)
+    a.set_xlim(0, 200); a.set_ylim(0, 150)
+for a in ax[1]: a.set_xlabel("RUL real (ciclos)")
+for a in ax[:, 0]: a.set_ylabel("RUL predicha (ciclos)")
 plt.tight_layout(); plt.savefig("docs/figuras/prueba_resultados.png", dpi=130)

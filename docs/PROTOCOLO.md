@@ -146,3 +146,37 @@ investigación (la API desplegada asume un solo régimen y no lo usa).
    `test_FD002` y `test_FD004` (vírgenes). FD001 y FD003 se reportan solo como referencia (ya gastadas).
 4. Sin umbral de aprobado/reprobado en la evaluación; se espera un error mayor que en FD001, porque FD004 combina
    regímenes y dos modos de falla.
+
+## 9. Resultados de las fases 2 y 3
+
+**Fase 2 (validación cruzada repetida, 3 semillas × 5 pliegues; `docs/resultados/fase2_*.csv`).** Se cumplen los cuatro
+criterios de la sección 7 y se adopta M1 (entrenar con FD001 + FD003):
+
+| | RMSE en motores FD001 | RMSE en motores FD003 |
+|---|---|---|
+| M0, solo FD001 | 11,66 | 42,18 |
+| M1, FD001 + FD003 | 11,41 | 11,07 |
+| M2, M1 + motores de prueba etiquetados | 11,45 | 10,77 |
+
+M1 − M0 en FD001: −0,25 [−0,44; −0,07] (no se afirma como mejora, es < 0,5). M2 no supera la regla de adopción.
+Modelo desplegado: `models/modelo_rul.joblib`, ensamble XGBoost + MLP entrenado con los 200 motores, recorte 110,
+margen P90 de 13,9 ciclos. Evaluaciones de referencia sobre pruebas ya gastadas (commit `3ac4481`):
+FD001 RMSE 14,05 y FD003 RMSE 15,50 contra la RUL real (en FD003 antes era 37,04).
+
+**Fase 3 (normalización por régimen).** En validación cruzada se cumple el criterio de la sección 8 (FD002 13,4 y
+FD004 13,6 de RMSE; sesgo con 0–25 ciclos de +1,6 y +2,4). Se congeló el modelo (commit `9783cd7`) y se evaluó **una
+sola vez** en las pruebas reservadas (`docs/resultados/final_regimenes_*`):
+
+| Conjunto (virgen) | Motores | RMSE con RUL real ≤ 125 | MAE | RMSE contra RUL real, todos | IC 95 % (todos) | Cobertura margen P90 |
+|---|---|---|---|---|---|---|
+| FD002 | 259 (202 con RUL ≤ 125) | 11,49 | 8,48 | 28,37 | 24,7 a 31,8 | 92,6 % |
+| FD004 | 248 (181 con RUL ≤ 125) | 12,67 | 9,45 | 30,27 | 27,1 a 33,4 | 92,8 % |
+
+Lectura: con normalización por régimen, el modelo generaliza a FD002 y FD004 en la zona que importa, con error
+parecido al de validación (13,4 y 13,6) y un margen conservador que cubre más del 90 %. El RMSE contra la RUL real
+sin recortar es mucho mayor porque 57 y 67 motores de prueba están sanos, con RUL real de hasta casi 200 ciclos, y el
+modelo, por diseño, no distingue más allá de 110 (sesgo −53 y −51 en esos motores; no afecta la decisión de
+mantenimiento). Las cifras confirmatorias son estas; las de FD001 y FD003 son solo referencia.
+
+Este modelo (`models/modelo_rul_regimenes.joblib`) es de investigación: la API desplegada usa un solo régimen.
+Llevarlo a la API exige guardar y aplicar el normalizador por régimen en el servicio (trabajo pendiente).
