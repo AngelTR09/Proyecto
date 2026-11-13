@@ -31,6 +31,8 @@ yr = y_raw.to_numpy()
 z = yr <= EVAL_MAX
 print(f"FD003 entrenamiento: {tr['unit'].nunique()} motores, {len(tr)} ciclos")
 
+# Requiere el modelo solo-FD001 congelado en el commit aa11773:
+#   git show aa11773:models/modelo_rul_fd001.joblib > models/modelo_rul_fd001.joblib
 b = joblib.load("models/modelo_rul_fd001.joblib")
 pa = np.clip(b["model"].predict(X[b["features"]]), 0, EVAL_MAX)
 A = {"caso": "A) modelo FD001 congelado sobre train_FD003", **all_metrics(yr[z], pa[z]), **zonas(pa, yr)}

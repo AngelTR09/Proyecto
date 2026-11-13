@@ -8,7 +8,8 @@ base del informe v1). Cada bloque indica la semana del curso de Machine Learning
     python entrenar_modelo.py --sin-busqueda  # usa los hiperparámetros ya encontrados (≈5 min)
     python entrenar_modelo.py --rapido        # prueba de humo (omite SVR y Random Forest)
 
-Genera `models/modelo_rul_fd001.joblib` (lo que usa la API), tablas en `outputs/` y figuras en `docs/figuras/`.
+Por defecto entrena con FD001 + FD003 (dos modos de falla, un solo régimen de operación; ver docs/PROTOCOLO.md, fase 2).
+Genera `models/modelo_rul.joblib` (lo que usa la API), tablas en `outputs/` y figuras en `docs/figuras/`.
 
 Este script NO lee ningún archivo de prueba. Toda decisión (modelo, hiperparámetros, margen, umbral de alarma)
 sale de la validación cruzada por motor sobre el entrenamiento. La prueba se evalúa después, una sola vez y
@@ -40,7 +41,7 @@ from xgboost import XGBClassifier, XGBRegressor
 
 from app.explain import xgb_component
 from app.features import FEATURES, build_features_multi, feature_label
-from ml_utils import CAP, EVAL_MAX, FIG_DIR, N_SPLITS, SEED, cv_predict, cv_report, load_train, rmse
+from ml_utils import CAP, EVAL_MAX, FIG_DIR, N_SPLITS, SEED, cv_predict, cv_report, load_train, pool, rmse
 
 ALARM_HORIZON = 30          # "falla en <= 30 ciclos" (semana 3: clasificación binaria)
 
@@ -78,6 +79,7 @@ def savefig(name):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-dir", default="data")
+    ap.add_argument("--subsets", nargs="+", default=["FD001", "FD003"], help="conjuntos de entrenamiento (un solo régimen)")
     ap.add_argument("--sin-busqueda", action="store_true")
     ap.add_argument("--rapido", action="store_true")
     args = ap.parse_args()
@@ -86,7 +88,7 @@ def main():
     np.random.seed(SEED)
 
     # ------------------------------------------------------------ datos y variables (semanas 1 y 2)
-    train = load_train(args.data_dir)
+    train = pool([(s, load_train(args.data_dir, s)) for s in args.subsets])
     t0 = time.time()
     X = build_features_multi(train)
     y_raw = train["RUL"].astype(float)
@@ -231,11 +233,11 @@ def main():
     bundle = {"model": final, "features": FEATURES, "rul_cap": CAP, "name": final_name,
               "classifier": clf, "alarm_horizon": ALARM_HORIZON, "alarm_threshold": th,
               "overestimate_p90": p90}
-    joblib.dump(bundle, "models/modelo_rul_fd001.joblib", compress=3)
+    joblib.dump(bundle, "models/modelo_rul.joblib", compress=3)
     with open("outputs/resumen.json", "w", encoding="utf-8") as fh:
         json.dump({"modelo": final_name, "xgb": px, "mlp": {k: (list(v) if isinstance(v, tuple) else v) for k, v in pm.items()},
                    "p90_validacion": p90, "umbral_alarma": th}, fh, indent=2, ensure_ascii=False)
-    print("Guardado: models/modelo_rul_fd001.joblib")
+    print("Guardado: models/modelo_rul.joblib")
 
 
 if __name__ == "__main__":

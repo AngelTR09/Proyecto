@@ -96,6 +96,45 @@ def load_test(data_dir="data", subset="FD001"):
     return test, rul
 
 
+# Pruebas ya "gastadas": se evaluaron con el modelo congelado (docs/PROTOCOLO.md, secciones 4 y 6), así que desde ahora
+# pueden usarse como datos etiquetados. Las de FD002 y FD004 siguen reservadas: solo `evaluar_final.py` las lee.
+SPENT_TESTS = ("FD001", "FD003")
+
+
+def load_test_labeled(data_dir="data", subset="FD003"):
+    """Motores de prueba truncados con su RUL en cada ciclo: RUL_final + (último ciclo - ciclo)."""
+    if subset not in SPENT_TESTS:
+        raise PermissionError(f"La prueba de {subset} sigue reservada (docs/PROTOCOLO.md); solo la lee evaluar_final.py.")
+    test, rul = load_test(data_dir, subset)
+    last = test.groupby("unit")["cycle"].transform("max")
+    test["RUL"] = test["unit"].map(dict(enumerate(rul, start=1))) + (last - test["cycle"])
+    return test
+
+
+def pool(parts):
+    """Junta conjuntos con identificadores de motor únicos (unit + 1000 * posición) y una columna `subset`."""
+    out = []
+    for k, (name, df) in enumerate(parts):
+        d = df.copy()
+        d["unit"] = d["unit"] + 1000 * k
+        d["subset"] = name
+        out.append(d)
+    return pd.concat(out, ignore_index=True)
+
+
+def repeated_group_folds(groups, strata, n_splits=N_SPLITS, seed=SEED):
+    """Pliegues por motor con barajado (GroupKFold es determinista), estratificados por conjunto."""
+    rng = np.random.default_rng(seed)
+    fold_of = {}
+    units = pd.Series(strata, index=groups).groupby(level=0).first()
+    for st in units.unique():
+        u = units.index[units == st].to_numpy()
+        for i, uu in enumerate(rng.permutation(u)):
+            fold_of[uu] = i % n_splits
+    f = np.array([fold_of[g] for g in groups])
+    return [(np.flatnonzero(f != k), np.flatnonzero(f == k)) for k in range(n_splits)]
+
+
 def last_rows(df, X):
     """Variables del último ciclo observado de cada motor (así se evalúa el conjunto de prueba)."""
     return X.loc[df.groupby("unit").tail(1).index].reset_index(drop=True)

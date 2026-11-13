@@ -13,7 +13,7 @@ from .explain import top_drivers
 from .features import INPUT_COLS, MIN_HISTORY, build_features
 
 BASE = Path(__file__).resolve().parent
-MODEL_PATH = BASE.parent / "models" / "modelo_rul_fd001.joblib"
+MODEL_PATH = BASE.parent / "models" / "modelo_rul.joblib"
 MAX_CYCLES = 1000
 
 # Referencias de decisión. El margen conservador resta la sobreestimación que el modelo mostró en el 90 % de

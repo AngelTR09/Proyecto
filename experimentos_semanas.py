@@ -7,7 +7,7 @@ al modelo final y cuál solo se usa para analizar. La conclusión de cada una es
 
     python experimentos_semanas.py --semana 2      # ingeniería de variables (preprocesamiento)
     python experimentos_semanas.py --semana 3      # clasificación binaria (alarma de falla)
-    python experimentos_semanas.py --semana 7      # LIME vs. SHAP (requiere models/modelo_rul_fd001.joblib)
+    python experimentos_semanas.py --semana 7      # LIME vs. SHAP (requiere models/modelo_rul.joblib)
     python experimentos_semanas.py --semana 9      # clustering
     python experimentos_semanas.py --semana 10     # PCA y t-SNE
     python experimentos_semanas.py --semana 11     # CNN 1D (requiere tensorflow)
@@ -205,7 +205,7 @@ def semana7():
     from lime.lime_tabular import LimeTabularExplainer
     from app.explain import top_drivers
     train, X, y_raw, y, groups = context()
-    bundle = joblib.load("models/modelo_rul_fd001.joblib")
+    bundle = joblib.load("models/modelo_rul.joblib")
     model = bundle["model"]
     order = np.argsort(y_raw.to_numpy())      # filas del entrenamiento, de la más cercana a la falla a la más sana
     picks = {"cerca de la falla": int(order[2]), "en la mitad de la vida": int(order[len(order) // 2]), "motor sano": int(order[-3])}

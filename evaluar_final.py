@@ -35,18 +35,20 @@ def git(*args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--subset", default="FD003", choices=["FD001", "FD002", "FD003", "FD004"])
-    ap.add_argument("--modelo", default="models/modelo_rul_fd001.joblib")
+    ap.add_argument("--modelo", default="models/modelo_rul.joblib")
+    ap.add_argument("--etiqueta", default="", help="prefijo de los archivos de salida, para no pisar evaluaciones de otros modelos")
     ap.add_argument("--data-dir", default="data")
     ap.add_argument("--repetir", action="store_true", help="vuelve a evaluar un subconjunto ya evaluado (queda registrado)")
     args = ap.parse_args()
 
-    dirty = git("status", "--porcelain", "--", "models", "app", "ml_utils.py")
+    dirty = git("status", "--porcelain", "--", "models", "app", "ml_utils.py", "regimenes.py")
     if dirty:
         raise SystemExit("Hay cambios sin commitear en models/, app/ o ml_utils.py. Congela el modelo con un commit "
                          f"antes de evaluar:\n{dirty}")
     commit = git("rev-parse", "HEAD")
     os.makedirs("outputs", exist_ok=True)
-    out_json = f"outputs/final_{args.subset}.json"
+    tag = f"{args.etiqueta}_" if args.etiqueta else ""
+    out_json = f"outputs/final_{tag}{args.subset}.json"
     previo = None
     if os.path.exists(out_json):
         if not args.repetir:
@@ -55,6 +57,8 @@ def main():
 
     bundle = joblib.load(args.modelo)
     test, rul = load_test(args.data_dir, args.subset)
+    if "normalizer" in bundle:                      # modelo con normalización por régimen (fase 3)
+        test = bundle["normalizer"].transform(test)
     X = last_rows(test, build_features_multi(test))[bundle["features"]]
     assert len(X) == len(rul) == test["unit"].nunique()
     pred = np.clip(bundle["model"].predict(X), 0, None)
@@ -79,9 +83,9 @@ def main():
         res["cobertura_margen_p90"] = {"p90_validacion": float(p90), "fraccion_sobreestima_menos_que_p90": float(np.mean(sobre <= p90))}
 
     json.dump(res, open(out_json, "w", encoding="utf8"), indent=2, ensure_ascii=False)
-    by_zone.to_csv(f"outputs/final_{args.subset}_por_zona.csv")
+    by_zone.to_csv(f"outputs/final_{tag}{args.subset}_por_zona.csv")
     pd.DataFrame({"unit": np.arange(1, len(rul) + 1), "RUL_real": rul, "RUL_pred": pred}).to_csv(
-        f"outputs/final_{args.subset}_predicciones.csv", index=False)
+        f"outputs/final_{tag}{args.subset}_predicciones.csv", index=False)
 
     print(f"{args.subset} · {len(rul)} motores · commit {commit[:8]} · {bundle['name']}")
     print("Contra RUL real   :", {k: round(v, 2) for k, v in res["contra_RUL_real"].items()})
