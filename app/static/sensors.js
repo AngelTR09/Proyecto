@@ -85,6 +85,41 @@ const SENSOR_INFO = [
 const TREND = { up: ["↑ Sube", "Tiende a subir al acercarse la falla."],
   upw: ["↑ Sube a veces", "Señal débil: en los motores de demostración sube en parte de ellos, no en todos."], down: ["↓ Baja", "Tiende a bajar al acercarse la falla."] };
 
+// Importancia en el modelo desplegado: |SHAP| medio (ciclos de RUL) de cada variable, del componente XGBoost
+// (outputs/shap_importancia.csv). rel0 = cambio respecto a la línea base, ewm = nivel suavizado, slope = pendiente.
+const IMPORTANCE = {
+  sensor2: { rel0: 0.25, ewm30: 1.54, slope30: 0.58 }, sensor3: { rel0: 0.06, ewm30: 3.01, slope30: 0.25 },
+  sensor4: { rel0: 4.60, ewm30: 0.84, slope30: 1.23 }, sensor7: { rel0: 0.57, ewm30: 0.29, slope30: 1.04 },
+  sensor8: { rel0: 0.80, ewm30: 0.25, slope30: 1.35 }, sensor9: { rel0: 2.36, ewm30: 0.61, slope30: 1.81 },
+  sensor11: { rel0: 9.62, ewm30: 1.10, slope30: 2.27 }, sensor12: { rel0: 1.33, ewm30: 0.16, slope30: 1.53 },
+  sensor13: { rel0: 0.70, ewm30: 0.35, slope30: 1.17 }, sensor14: { rel0: 1.46, ewm30: 0.39, slope30: 1.48 },
+  sensor15: { rel0: 0.64, ewm30: 0.33, slope30: 0.54 }, sensor17: { rel0: 0.23, ewm30: 3.88, slope30: 0.35 },
+  sensor20: { rel0: 0.44, ewm30: 0.21, slope30: 0.48 }, sensor21: { rel0: 0.38, ewm30: 0.13, slope30: 0.67 },
+};
+const KIND = {
+  rel0: { name: "Cambio respecto a su línea base", short: "el cambio respecto a su línea base",
+    why: "Cada motor sale de fábrica con lecturas algo distintas, así que el valor absoluto no dice cuánto se ha desgastado. Lo que delata el desgaste es cuánto se alejó de la media de sus propios primeros 10 ciclos." },
+  ewm30: { name: "Nivel suavizado (30 ciclos)", short: "su nivel suavizado",
+    why: "La lectura de un ciclo es ruidosa. Una media móvil exponencial de unos 30 ciclos quita el ruido y deja ver el nivel real, que es lo que informa del estado del componente." },
+  slope30: { name: "Tendencia de los últimos 30 ciclos", short: "su tendencia reciente",
+    why: "Mide qué tan rápido está cambiando el sensor ahora: dos motores con el mismo nivel pero distinta velocidad de cambio no están igual de cerca de la falla." },
+};
+const IMP_TOTAL = Object.values(IMPORTANCE).reduce((a, o) => a + o.rel0 + o.ewm30 + o.slope30, 0);
+const impSum = (id) => { const o = IMPORTANCE[id]; return o.rel0 + o.ewm30 + o.slope30; };
+const IMP_RANK = Object.keys(IMPORTANCE).sort((a, b) => impSum(b) - impSum(a));
+
+// Mismas definiciones que app/features.py, para mostrar en el navegador lo que ve el modelo.
+function baselineSeries(x) {
+  const out = []; let sum = 0, base = 0;
+  x.forEach((v, i) => { sum += v; const cum = sum / (i + 1); if (i === 9) base = cum; out.push(i < 10 ? cum : base); });
+  return out;
+}
+function ewmSeries(x, span = 30) {
+  const a = 2 / (span + 1); const out = [x[0]];
+  for (let i = 1; i < x.length; i++) out.push(a * x[i] + (1 - a) * out[i - 1]);
+  return out;
+}
+
 let selSensor = null;
 let activeGroup = "all";
 
@@ -133,6 +168,24 @@ function renderSensorCards() {
     </button>`).join("");
 }
 
+function analysisBlock(s) {
+  const o = IMPORTANCE[s.id], tot = impSum(s.id);
+  const kinds = ["rel0", "ewm30", "slope30"];
+  const top = kinds.reduce((a, k) => (o[k] > o[a] ? k : a), "rel0");
+  const max = Math.max(...kinds.map((k) => o[k]));
+  const bars = kinds.map((k) => `<li class="${k === top ? "main" : ""}"><span>${KIND[k].name}</span>
+    <span class="bar"><i style="width:${(o[k] / max) * 100}%"></i></span><span class="val">${(o[k] / IMP_TOTAL * 100).toFixed(1).replace(".", ",")} %</span></li>`).join("");
+  const rank = IMP_RANK.indexOf(s.id) + 1;
+  return `<div class="analysis">
+    <h4>Cómo lo analiza el modelo</h4>
+    <p>El modelo no usa la lectura cruda. De este sensor calcula tres variables, y entre las tres su aporte a la predicción es el siguiente
+    (porcentaje del total explicado por todas las variables):</p>
+    <ul class="imp">${bars}</ul>
+    <p class="muted"><b>${s.symbol}</b> aporta en conjunto el <b>${(tot / IMP_TOTAL * 100).toFixed(1).replace(".", ",")} %</b> de la explicación del modelo
+    (puesto ${rank} de 14). Lo que más usa de él es <b>${KIND[top].short}</b>. ${KIND[top].why}</p>
+  </div>`;
+}
+
 function renderSensorDetail() {
   const s = SENSOR_INFO.find((x) => x.id === selSensor);
   const el = $("sensor-detail");
@@ -156,6 +209,7 @@ function renderSensorDetail() {
         <dt>Comportamiento en FD001</dt><dd>${trendTag(s.trend)} ${TREND[s.trend][1]}</dd>
       </dl>
     </div>
+    ${analysisBlock(s)}
     <div id="sensor-live"></div>`;
   drawLive();
 }
@@ -169,13 +223,21 @@ function drawLive() {
     return;
   }
   const raw = S.history[selSensor];
-  el.innerHTML = `<h4>Este sensor en el motor cargado</h4><div id="chart-sensor-info" class="chart"></div>`;
+  const base = baselineSeries(raw), ewm = ewmSeries(raw), rel = raw.map((v, i) => v - base[i]);
+  el.innerHTML = `<h4>Este sensor en el motor cargado: lo que lee y lo que ve el modelo</h4>
+    <p class="hint">Arriba, la lectura cruda, su línea base (media de los primeros 10 ciclos) y su nivel suavizado. Abajo, el cambio respecto a la línea base: la variable que el modelo usa.</p>
+    <div id="chart-sensor-info" class="chart"></div><div id="chart-sensor-rel" class="chart"></div>`;
   lineChart($("chart-sensor-info"), {
     series: [
-      { name: selSensor, x: S.cycles, y: raw, color: "var(--muted)", width: 1.2, noDot: true },
-      { name: "media móvil de 5 ciclos", x: S.cycles, y: movingMean(raw, 5), color: "var(--pred)", width: 2.2 },
+      { name: "lectura", x: S.cycles, y: raw, color: "var(--muted)", width: 1.2, noDot: true },
+      { name: "línea base", x: S.cycles, y: base, color: "var(--real)", width: 2, dash: "6 4", noDot: true },
+      { name: "nivel suavizado", x: S.cycles, y: ewm, color: "var(--pred)", width: 2.2, noDot: true },
     ],
     xLabel: "ciclo", yLabel: selSensor,
+  });
+  lineChart($("chart-sensor-rel"), {
+    series: [{ name: "cambio respecto a la línea base", x: S.cycles, y: rel, color: "var(--pred)", width: 2, noDot: true }],
+    xLabel: "ciclo", yLabel: "lectura − línea base",
   });
 }
 
@@ -204,9 +266,9 @@ function initSensors() {
 }
 
 // ---------- navegación entre secciones ----------
-const VIEWS = ["predictor", "sensores", "modelado"];
+const VIEWS = ["sensores", "modelado", "predictor"];
 function showView() {
-  const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "predictor";
+  const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "sensores";
   VIEWS.forEach((k) => {
     $(`view-${k}`).hidden = k !== v;
     const a = document.querySelector(`.nav a[href="#${k}"]`);
@@ -214,6 +276,7 @@ function showView() {
     a.toggleAttribute("aria-current", k === v);
   });
   if (v === "sensores") drawLive();
+  window.scrollTo(0, 0);
 }
 
 initSensors();
