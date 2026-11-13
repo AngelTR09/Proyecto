@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 330" font-family="system-ui,Segoe UI,Arial,sans-serif">
+<rect width="800" height="330" rx="14" fill="#f4f7fb"/>
+<g transform="translate(0 52)">
+  <path d="M40,40 L690,40 Q735,40 745,80 L745,190 Q735,230 690,230 L40,230" fill="#fff" stroke="#8793a3" stroke-width="2"/>
+  <g fill="#e9eef4" stroke="#8793a3" stroke-width="1.5"><rect x="62" y="52" width="26" height="166" rx="4"/><rect x="100" y="96" width="92" height="78" rx="3"/><path d="M200,96 L340,108 L340,162 L200,174 Z"/><rect x="346" y="104" width="86" height="62" rx="12"/><rect x="440" y="100" width="40" height="70" rx="3"/><rect x="490" y="90" width="64" height="90" rx="3"/><path d="M570,104 L720,118 L720,152 L570,166 Z"/></g>
+  <line x1="100" x2="560" y1="135" y2="135" stroke="#8793a3" stroke-width="2" stroke-dasharray="5 4"/>
+  <g fill="#1d7a46" fill-opacity=".28" stroke="#1d7a46" stroke-width="3"><rect x="62" y="52" width="26" height="166" rx="4"/></g>
+  
+  <circle cx="75" cy="135" r="15" fill="#fff" stroke="#1d7a46" stroke-width="3"/>
+  <circle cx="75" cy="135" r="6" fill="#1d7a46"/>
+  <g transform="translate(75 113)"><path d="M-17,-22 A17,17 0 1 1 0,-5" fill="none" stroke="#1d7a46" stroke-width="4" stroke-linecap="round"/><path d="M-1,-13 L3,-4 L-8,-4 Z" fill="#1d7a46" transform="rotate(8 0 -5)"/></g>
+  <g font-size="12" fill="#5d6b7c" text-anchor="middle"><text x="75" y="248">Fan</text><text x="146" y="196">LPC</text><text x="270" y="196">HPC</text><text x="389" y="196">Cámara</text><text x="460" y="196">HPT</text><text x="522" y="206">LPT</text><text x="645" y="196">Tobera</text></g>
+</g>
+<circle cx="34" cy="34" r="20" fill="#1d7a46"/><text x="34" y="41" text-anchor="middle" font-size="19" font-weight="700" fill="#fff">13</text>
+<text x="64" y="30" font-size="22" font-weight="700" fill="#1b2430">NRf</text>
+<text x="64" y="50" font-size="13" fill="#5d6b7c">Velocidad corregida del fan</text>
+<text x="780" y="30" text-anchor="end" font-size="13" fill="#1d7a46" font-weight="700">rpm</text>
+</svg>

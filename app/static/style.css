@@ -75,3 +75,54 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: .85em; backgro
   button.primary { margin-left: 0; width: 100%; }
   select { min-width: 0; width: 100%; }
 }
+
+/* ---- navegación y sección Sensores ---- */
+.nav { display: flex; gap: 4px; margin-top: 12px; }
+.nav a { padding: 6px 14px; border-radius: 99px; color: var(--muted); text-decoration: none; font-weight: 600; }
+.nav a:hover { background: var(--bg); }
+.nav a.active { background: var(--accent); color: var(--accent-text); }
+.diagram svg { width: 100%; height: auto; display: block; margin: 8px 0; }
+.diagram .nacelle { fill: none; stroke: var(--muted); stroke-width: 2; }
+.diagram .part { fill: var(--bg); stroke: var(--muted); stroke-width: 1.5; }
+.diagram .fan { fill: var(--line); }
+.diagram .comb { fill: var(--warn-bg); stroke: var(--warn); }
+.diagram .hot { fill: var(--bad-bg); stroke: var(--bad); }
+.diagram .shaft { stroke: var(--muted); stroke-width: 2; stroke-dasharray: 5 4; }
+.diagram .lbl text { fill: var(--muted); font-size: 12px; }
+.diagram .mk { cursor: pointer; }
+.diagram .mk text { fill: #fff; font-size: 12px; font-weight: 700; pointer-events: none; }
+.diagram .mk circle { stroke: var(--panel); stroke-width: 2; }
+.diagram .mk:hover circle, .diagram .mk.on circle { stroke: var(--text); stroke-width: 3; }
+.diagram .mk:focus-visible { outline: none; }
+.diagram .mk:focus-visible circle { stroke: var(--text); stroke-width: 3; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
+.chip { font: inherit; font-size: .88rem; display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 99px; border: 1px solid var(--line); background: none; color: var(--text); cursor: pointer; }
+.chip i { width: 10px; height: 10px; border-radius: 50%; }
+.chip.on { border-color: var(--accent); background: var(--bg); font-weight: 600; }
+.scards { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 8px; }
+.scard { font: inherit; text-align: left; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); cursor: pointer; }
+.scard.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.sc-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sc-txt small { color: var(--muted); font-size: .76rem; line-height: 1.25; }
+.dot { flex: none; width: 26px; height: 26px; border-radius: 50%; color: #fff; font-size: .8rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.dot.lg { width: 38px; height: 38px; font-size: 1rem; }
+.trend { flex: none; font-size: .75rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.trend.up { background: var(--bad-bg); color: var(--bad); }
+.trend.down { background: var(--warn-bg); color: var(--warn); }
+.sd-head { display: flex; gap: 12px; align-items: flex-start; }
+.sd-head h3 { margin: 0; font-size: 1.05rem; }
+.sd-body { display: grid; grid-template-columns: minmax(180px, 280px) 1fr; gap: 16px; margin-top: 12px; }
+.sd-fig { margin: 0; }
+.sd-fig img { width: 100%; border-radius: 8px; display: block; border: 1px solid var(--line); }
+.sd-fig .ph { display: none; }
+.sd-fig.noimg img { display: none; }
+.sd-fig.noimg .ph { display: block; border: 2px dashed var(--line); border-radius: 8px; padding: 16px; color: var(--muted); font-size: .82rem; text-align: center; }
+dl { margin: 0; }
+dt { font-weight: 700; margin-top: 8px; }
+dt:first-child { margin-top: 0; }
+dd { margin: 2px 0 0; }
+#sensor-live h4 { margin: 16px 0 6px; font-size: .95rem; }
+.gloss { margin: 8px 0 0; padding-left: 20px; }
+.gloss li { margin-bottom: 4px; }
+@media (max-width: 640px) { .sd-body { grid-template-columns: 1fr; } }
+.sd-fig a { color: var(--accent); }

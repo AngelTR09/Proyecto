@@ -12,10 +12,16 @@
     <div class="wrap">
       <h1>Predictor de vida útil restante</h1>
       <p class="sub" id="sub">Motores turbofán · NASA C-MAPSS FD001</p>
+      <nav class="nav" aria-label="Secciones">
+        <a href="#predictor" class="active">Predictor</a>
+        <a href="#sensores">Sensores</a>
+        <a href="#modelado">Modelado</a>
+      </nav>
     </div>
   </header>
 
   <main class="wrap">
+    <div id="view-predictor">
     <section class="panel" aria-label="Origen de los datos">
       <div class="tabs" role="tablist">
         <button class="tab active" id="tab-demo" role="tab" aria-selected="true">Motor de demostración</button>
@@ -103,11 +109,46 @@
         <div id="chart-sensor" class="chart"></div>
       </section>
     </div>
+    </div><!-- /view-predictor -->
+
+    <div id="view-sensores" hidden>
+      <section class="panel" aria-label="Los sensores del motor">
+        <h2>Los 14 sensores que lee el modelo</h2>
+        <p class="hint">Cada ciclo (un vuelo) el motor entrega 21 lecturas. El modelo usa 14, las que cambian con el desgaste; las otras 7 se mantienen constantes en FD001 y no aportan información. Toca un número en el esquema para ver qué mide.</p>
+        <div id="engine-diagram" class="diagram"></div>
+        <div id="sensor-legend" class="chips" role="group" aria-label="Filtrar por tipo"></div>
+        <div id="sensor-cards" class="scards"></div>
+      </section>
+      <section class="panel" id="sensor-detail" aria-live="polite"></section>
+      <section class="panel" aria-label="Glosario">
+        <h2>Para leer los datos</h2>
+        <ul class="gloss">
+          <li><b>Ciclo:</b> un vuelo completo del motor (despegue, crucero y aterrizaje).</li>
+          <li><b>Total vs. estática:</b> la presión o temperatura total incluye el efecto del movimiento del aire; la estática es la del aire quieto.</li>
+          <li><b>Corregida:</b> lectura normalizada por altitud y clima, para poder comparar vuelos distintos.</li>
+          <li><b>°R (Rankine):</b> escala absoluta de temperatura en grados Fahrenheit. °C = (°R − 491,67) × 5/9.</li>
+          <li><b>FD001:</b> subconjunto de C-MAPSS con una sola condición de operación y un solo modo de falla (degradación del HPC).</li>
+        </ul>
+      </section>
+    </div>
+
+    <div id="view-modelado" hidden>
+      <section class="panel" aria-label="Modelado">
+        <h2>Modelado</h2>
+        <p class="hint">Aquí se mostrará el modelado de los sensores: cómo se construyen las variables a partir de las lecturas, qué modelos se compararon y qué tan bien predicen. Sección en preparación.</p>
+        <ol class="gloss">
+          <li>Variables por sensor: valor respecto a la línea base, tendencia y media móvil.</li>
+          <li>Comparación de modelos y validación.</li>
+          <li>Importancia de cada sensor (SHAP).</li>
+        </ol>
+      </section>
+    </div>
 
     <p class="foot">Los datos son simulados (NASA C-MAPSS, un solo modo de falla). Esta herramienta apoya la decisión de mantenimiento, no la reemplaza.
       Los umbrales del estado son de referencia. <span id="foot-metrics"></span></p>
   </main>
 
   <script src="app.js"></script>
+  <script src="sensors.js"></script>
 </body>
 </html>
