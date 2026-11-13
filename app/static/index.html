@@ -134,14 +134,61 @@
     </div>
 
     <div id="view-modelado" hidden>
-      <section class="panel" aria-label="Modelado">
-        <h2>Modelado</h2>
-        <p class="hint">Aquí se mostrará el modelado de los sensores: cómo se construyen las variables a partir de las lecturas, qué modelos se compararon y qué tan bien predicen. Sección en preparación.</p>
-        <ol class="gloss">
-          <li>Variables por sensor: valor respecto a la línea base, tendencia y media móvil.</li>
-          <li>Comparación de modelos y validación.</li>
-          <li>Importancia de cada sensor (SHAP).</li>
-        </ol>
+      <section class="panel" aria-label="De los sensores a las variables">
+        <h2>1. De las lecturas a las variables</h2>
+        <p class="hint">El modelo no mira el valor crudo de cada sensor: cada motor sale de fábrica con valores algo distintos. Por cada uno de los 14 sensores calcula tres variables que solo usan los ciclos ya vividos, y se suman los 2 ajustes de operación: 14 × 3 + 2 = 44 variables.</p>
+        <ul class="gloss">
+          <li><b>Respecto a su línea base (rel0):</b> el valor menos la media de los primeros 10 ciclos del propio motor. Deja solo el desgaste.</li>
+          <li><b>Nivel suavizado (ewm30):</b> media móvil exponencial. Quita ruido sin perder la tendencia.</li>
+          <li><b>Pendiente (slope30):</b> qué tan rápido cambia el sensor en los últimos 30 ciclos.</li>
+        </ul>
+        <p class="hint">Esta decisión, y no el cambio de algoritmo, explicó la mayor parte de la mejora respecto a la primera versión.</p>
+      </section>
+
+      <section class="panel" aria-label="Comparación de modelos">
+        <h2>2. Qué modelos se compararon</h2>
+        <p class="hint">Validación cruzada por motor (5 pliegues; ningún motor aparece a la vez en entrenamiento y validación), en la zona donde decide el mantenimiento: RUL real de hasta 125 ciclos. Menor es mejor.</p>
+        <table class="tbl">
+          <thead><tr><th>Modelo</th><th>RMSE (ciclos)</th><th>MAE</th><th>Puntaje NASA</th></tr></thead>
+          <tbody>
+            <tr><td>Ridge (línea base)</td><td>16,01 ± 0,58</td><td>13,14</td><td>10 082</td></tr>
+            <tr><td>SVR</td><td>12,56 ± 0,52</td><td>9,40</td><td>7 103</td></tr>
+            <tr><td>XGBoost</td><td>12,34 ± 0,55</td><td>9,09</td><td>6 205</td></tr>
+            <tr><td>Random Forest</td><td>12,28 ± 0,51</td><td>9,06</td><td>6 041</td></tr>
+            <tr><td>MLP</td><td>12,06 ± 0,41</td><td>8,90</td><td>5 628</td></tr>
+            <tr class="best"><td>Ensamble XGBoost + MLP (el que se usa)</td><td>11,84 ± 0,49</td><td>8,63</td><td>5 417</td></tr>
+          </tbody>
+        </table>
+        <p class="hint">El «±» es la desviación entre pliegues. Entre los modelos de árboles y redes las diferencias son pequeñas; lo que separa claramente es pasar del modelo lineal a uno no lineal.</p>
+      </section>
+
+      <section class="panel" aria-label="Qué sensores pesan">
+        <h2>3. Qué sensores pesan en la predicción</h2>
+        <p class="hint">Contribución media de cada variable (valores SHAP del componente XGBoost). Domina el cambio del sensor 11 (presión estática a la salida del compresor) respecto a su línea base, con 8,5 ciclos de contribución media, más de dos veces la siguiente: el nivel suavizado de los sensores 3 y 4 (T30 y T50).</p>
+        <figure class="mfig"><img src="img/modelado/shap_global.png" alt="Variables que más pesan en la predicción" loading="lazy"></figure>
+      </section>
+
+      <section class="panel" aria-label="Recorte de la RUL">
+        <h2>4. Recorte de la vida restante</h2>
+        <p class="hint">Mientras el motor está sano no hay desgaste que medir, así que el modelo se entrena con la RUL acotada a un tope. Se probó con varios valores, siempre en validación cruzada y comparando con la misma RUL real (≤ 125).</p>
+        <table class="tbl">
+          <thead><tr><th>Tope</th><th>RMSE</th><th>Sesgo con 76–100 ciclos restantes</th><th>Diferencia vs 125 (IC 95 %)</th></tr></thead>
+          <tbody>
+            <tr><td>100</td><td>12,31</td><td>−0,8</td><td>−0,66 [−1,28; −0,07]</td></tr>
+            <tr class="best"><td>110 (el que se usa)</td><td>11,84</td><td>+2,9</td><td>−1,13 [−1,54; −0,71]</td></tr>
+            <tr><td>125</td><td>12,96</td><td>+7,2</td><td>referencia</td></tr>
+            <tr><td>140</td><td>14,05</td><td>+9,6</td><td>+1,10 [+0,86; +1,33]</td></tr>
+            <tr><td>150</td><td>14,65</td><td>+10,4</td><td>+1,70 [+1,36; +2,02]</td></tr>
+          </tbody>
+        </table>
+        <p class="hint">Sesgo positivo = sobreestima la vida restante, que es lo peligroso. Por eso, con un motor saludable la página muestra «≥ 110» y no un número exacto. También se probaron una calibración isotónica y una cota por regresión cuantílica; no mejoraron y se descartaron.</p>
+      </section>
+
+      <section class="panel" aria-label="Prueba con otro modo de falla">
+        <h2>5. Qué pasa con un modo de falla nuevo</h2>
+        <p class="hint">Con el modelo ya fijado se evaluó una sola vez en FD003, un conjunto que no se usó para decidir nada y cuyos motores fallan por dos causas distintas. A la izquierda, FD001, el conjunto donde se entrenó (esa prueba ya se había visto, así que es solo referencia).</p>
+        <figure class="mfig"><img src="img/modelado/prueba_resultados.png" alt="RUL predicha frente a real en FD001 y FD003" loading="lazy"></figure>
+        <p>En FD003 el error es el triple (RMSE 37,0 frente a 14,1) y, cerca de la falla, el modelo sobreestima la vida restante en unos 54 ciclos. Un chequeo con solo los datos de entrenamiento de FD003 muestra que no es culpa de los sensores: si el modelo se entrena también con ese modo de falla, el error vuelve a 11,7. El problema es que lo que no se vio en el entrenamiento no se reconoce.</p>
       </section>
     </div>
 
