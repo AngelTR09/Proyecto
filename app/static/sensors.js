@@ -266,7 +266,7 @@ function initSensors() {
 }
 
 // ---------- navegación entre secciones ----------
-const VIEWS = ["sensores", "predictor", "modelado"];
+const VIEWS = ["sensores", "modelado", "predictor"];
 function showView() {
   const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "sensores";
   VIEWS.forEach((k) => {
