@@ -8,3 +8,4 @@ __pycache__/
 # Generados por el script de entrenamiento (el modelo que se despliega vive en models/)
 /data/
 /outputs/
+/outputs_*.log
