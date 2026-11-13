@@ -15,7 +15,7 @@ Estima cuántos ciclos de operación le quedan a un motor antes de fallar, a par
 | `experimentos_fd003.py` | Diagnóstico de FD003 usando únicamente su conjunto de entrenamiento |
 | `ml_utils.py` | Datos (FD001 a FD004), métricas y validación cruzada por motor compartidos por los scripts |
 | `rul_cmapss_fd001.py` | Notebook original exportado de Colab (versión 1 del informe); se conserva como línea base |
-| `models/modelo_rul_fd001.joblib` | Modelo entrenado (regresión, clasificador de alarma y metadatos) que usa la aplicación |
+| `models/modelo_rul.joblib` | Modelo entrenado (regresión, clasificador de alarma y metadatos) que usa la aplicación |
 | `app/` | Servicio web: API (FastAPI) y página (HTML/JS) |
 | `app/features.py` | Variables del modelo. Fuente única: la usan el entrenamiento y la API |
 | `app/explain.py` | Explicaciones SHAP de cada predicción |
@@ -82,7 +82,7 @@ sin visitas y la primera consulta tarda cerca de un minuto en responder.
 
 ```bash
 pip install -r requirements-train.txt
-python entrenar_modelo.py --sin-busqueda   # descarga el dataset a data/, entrena y escribe models/modelo_rul_fd001.joblib
+python entrenar_modelo.py --sin-busqueda   # descarga el dataset a data/, entrena y escribe models/modelo_rul.joblib
 python experimentos_semanas.py --semana 2  # o 3, 7, 9, 10, 11, todas
 python -m pytest -q tests
 ```

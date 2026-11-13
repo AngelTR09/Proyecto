@@ -22,7 +22,7 @@
 
   <main class="wrap">
     <div id="view-predictor">
-    <p class="notice" role="note"><b>Alcance del modelo.</b> Se entrenó y validó con un solo modo de falla (degradación del compresor, conjunto FD001). Probado con otro modo de falla (FD003), sobreestimó la vida restante en unos 54 ciclos en promedio en motores a 25 ciclos o menos de fallar. No uses esta estimación para motores con otros modos de falla.</p>
+    <p class="notice" role="note"><b>Alcance del modelo.</b> Se entrenó y validó con dos modos de falla (conjuntos FD001 y FD003 de NASA), ambos con un solo régimen de operación. Un modelo entrenado con un solo modo de falla sobreestimó la vida restante en unos 54 ciclos cuando se probó con el otro; por eso se entrena con los dos. No se ha comprobado con motores que operan en varios regímenes de vuelo (FD002 y FD004): no uses esta estimación para ellos.</p>
     <section class="panel" aria-label="Origen de los datos">
       <div class="tabs" role="tablist">
         <button class="tab active" id="tab-demo" role="tab" aria-selected="true">Motor de demostración</button>
