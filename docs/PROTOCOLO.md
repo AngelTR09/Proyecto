@@ -70,3 +70,31 @@ Ejecutada una sola vez, sin ajustes posteriores. Detalle en `docs/resultados/`.
 Lectura: el modelo **no transfiere** a un segundo modo de falla. Cerca de la falla sobreestima la vida restante
 en más de 50 ciclos, que es el error más peligroso para mantenimiento. El margen conservador (P90 de FD001) solo
 cubrió el 57 % de los motores de FD003, frente al 97 % en FD001. Las cifras de FD001 no son confirmatorias.
+
+### Diagnóstico posterior (solo con `train_FD003`, sin tocar su prueba)
+
+`experimentos_fd003.py`, resultados en `docs/resultados/diagnostico_fd003.csv`:
+
+| Caso | RMSE (RUL ≤ 125) | Sesgo en 0–25 ciclos |
+|---|---|---|
+| A) modelo FD001 congelado aplicado a `train_FD003` | 35,2 | +37,4 |
+| B) entrenar y validar con GroupKFold dentro de FD003 | 11,7 ± 1,0 | +1,0 |
+
+Las variables y las 14 columnas **no** son el problema: con datos de FD003 el error es el mismo que en FD001
+(11,7 frente a 11,84). El fallo es de **transferencia entre modos de falla**: un modelo entrenado con un solo
+modo no reconoce el otro.
+
+### Aclaración sobre la cifra de FD001
+
+El RMSE de 14,1 en los 100 motores de prueba de FD001 no contradice la mejora en validación. Se reconstruyó el
+modelo anterior (CAP = 125; el archivo guardado en git no se puede cargar) y se compararon con la misma definición:
+
+| | RMSE, 100 motores vs RUL real | RMSE, solo RUL ≤ 125 |
+|---|---|---|
+| CAP = 125 (reconstruido; el original publicó 12,79) | 12,83 | 11,83 |
+| CAP = 110 (vigente) | 14,07 | 10,90 |
+
+La diferencia en la zona de elección es −0,92 ciclos con IC 95 % [−2,03; +0,15]: va en el sentido de la
+validación, pero en prueba el intervalo incluye 0. En los 11 motores sanos (RUL > 125) el recorte a 110 subestima
+más (sesgo −28 frente a −18), lo que no afecta la decisión de mantenimiento pero sube el RMSE global. Esta
+comparación usó la prueba de FD001, ya vista, y no se usó para elegir nada.

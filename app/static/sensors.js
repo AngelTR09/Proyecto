@@ -38,8 +38,8 @@ const SENSOR_INFO = [
   { id: "sensor9", n: 9, symbol: "Nc", name: "Velocidad física del núcleo", unit: "rpm", group: "speed", x: 255, y: 88,
     station: "Eje de alta presión",
     what: "Revoluciones reales del eje de alta presión (compresor HPC y turbina HPT).",
-    why: "Sube cuando el núcleo debe girar más rápido para compensar la pérdida de eficiencia.",
-    trend: "up", search: "turbofan high pressure shaft N2 core speed" },
+    why: "Sube cuando el núcleo debe girar más rápido para compensar la pérdida de eficiencia. En los motores de demostración sube en cerca de 8 de cada 10.",
+    trend: "upw", search: "turbofan high pressure shaft N2 core speed" },
   { id: "sensor11", n: 11, symbol: "Ps30", name: "Presión estática a la salida del HPC", unit: "psia", group: "pres", x: 320, y: 172,
     station: "Salida del HPC",
     what: "Presión estática (sin el componente del movimiento del aire) medida en la salida del HPC.",
@@ -58,8 +58,8 @@ const SENSOR_INFO = [
   { id: "sensor14", n: 14, symbol: "NRc", name: "Velocidad corregida del núcleo", unit: "rpm", group: "speed", x: 255, y: 172,
     station: "Eje de alta presión",
     what: "Velocidad del núcleo normalizada por las condiciones del aire de entrada.",
-    why: "Igual que Nc, pero comparable entre condiciones de vuelo.",
-    trend: "up", search: "corrected core speed turbofan spool" },
+    why: "Igual que Nc, pero comparable entre condiciones de vuelo. Es una señal débil: en los motores de demostración sube en poco más de la mitad.",
+    trend: "upw", search: "corrected core speed turbofan spool" },
   { id: "sensor15", n: 15, symbol: "BPR", name: "Relación de derivación (bypass ratio)", unit: "adimensional", group: "flow", x: 170, y: 48,
     station: "Conducto de derivación",
     what: "Cociente entre el aire que rodea el núcleo y el que pasa por él.",
@@ -82,7 +82,8 @@ const SENSOR_INFO = [
     trend: "down", search: "low pressure turbine cooling air LPT blades" },
 ];
 
-const TREND = { up: ["↑ Sube", "Tiende a subir al acercarse la falla."], down: ["↓ Baja", "Tiende a bajar al acercarse la falla."] };
+const TREND = { up: ["↑ Sube", "Tiende a subir al acercarse la falla."],
+  upw: ["↑ Sube a veces", "Señal débil: en los motores de demostración sube en parte de ellos, no en todos."], down: ["↓ Baja", "Tiende a bajar al acercarse la falla."] };
 
 let selSensor = null;
 let activeGroup = "all";
