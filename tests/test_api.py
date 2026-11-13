@@ -68,3 +68,9 @@ def test_explicar_un_ciclo_intermedio(client):
     r = client.get("/api/demo/engines/5/explain?cycle=40").json()
     assert r["cycle_index"] == 39
     assert client.get("/api/demo/engines/5/explain?cycle=99999").status_code == 422
+
+
+def test_archivos_estaticos_se_revalidan(client):
+    # Evita que un navegador mezcle una hoja de estilos vieja con HTML y JS nuevos.
+    for ruta in ("/", "/style.css", "/sensors.js", "/app.js"):
+        assert client.get(ruta).headers["cache-control"] == "no-cache"

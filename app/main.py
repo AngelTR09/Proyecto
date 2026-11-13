@@ -196,4 +196,14 @@ def demo_engine_explain(unit: int, cycle: int | None = None):
     return _explain(g[INPUT_COLS], index)
 
 
-app.mount("/", StaticFiles(directory=BASE / "static", html=True), name="static")
+class NoCacheStaticFiles(StaticFiles):
+    """Los archivos de la página se revalidan siempre (ETag): sin esto, un navegador con una hoja de estilos
+    vieja la sigue usando junto con HTML y JS nuevos, y la página se ve rota hasta recargar a la fuerza."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/", NoCacheStaticFiles(directory=BASE / "static", html=True), name="static")

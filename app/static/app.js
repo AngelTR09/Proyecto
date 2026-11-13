@@ -297,7 +297,7 @@ function setMode(next) {
 async function init() {
   try {
     info = await api("/api/info");
-    $("sub").textContent = `Motores turbofán · NASA C-MAPSS FD001 · ${info.model}`;
+    $("sub").textContent = `Motores turbofán · NASA C-MAPSS FD001 y FD003 · ${info.model}`;
     if (info.test_metrics) $("foot-metrics").textContent = ` Error del modelo en prueba: MAE ${fmt(info.test_metrics.MAE)} ciclos, RMSE ${fmt(info.test_metrics.RMSE)} ciclos.`;
     const engines = await api("/api/demo/engines");
     $("engine").innerHTML = engines.map((e) => `<option value="${e.unit}">Motor ${e.unit} · ${e.n_cycles} ciclos observados</option>`).join("");
