@@ -17,12 +17,12 @@ MODEL_PATH = BASE.parent / "models" / "modelo_rul_fd001.joblib"
 MAX_CYCLES = 1000
 
 # Referencias de decisión. El margen conservador resta la sobreestimación que el modelo mostró en el 90 % de
-# los ciclos de validación cruzada (zona RUL <= 125); lo calcula `entrenar_modelo.py` y viaja dentro del
+# los ciclos de validación cruzada (zona RUL <= 125, `EVAL_MAX`); lo calcula `entrenar_modelo.py` y viaja dentro del
 # modelo guardado. Los umbrales del semáforo son una política ajustable, no un resultado del modelo.
 DEFAULT_OVERESTIMATE_P90 = 25.5
 CRITICAL_BELOW = 15       # RUL conservadora <= 15 ciclos
 INSPECT_BELOW = 50        # RUL conservadora <= 50 ciclos
-SATURATION = 120          # el modelo se entrenó con la RUL acotada a 125
+SATURATION_MARGIN = 5      # se considera saturada una RUL predicha a menos de 5 ciclos del recorte de entrenamiento
 
 STATE = {}
 
@@ -71,7 +71,7 @@ def _predict(df: pd.DataFrame) -> dict:
     if "cycle" in df and len(df) and int(df["cycle"].iloc[0]) != 1:
         warnings.append("El historial no empieza en el ciclo 1: la línea base del motor se calcula con los "
                         "primeros 10 ciclos recibidos y la estimación puede desviarse.")
-    if last >= SATURATION:
+    if last >= STATE["cap"] - SATURATION_MARGIN:
         warnings.append(f"El modelo se entrenó con la RUL acotada a {STATE['cap']} ciclos: "
                         f"indica motor saludable, pero no distingue valores mayores.")
     out = {
@@ -141,7 +141,7 @@ def health():
 @app.get("/api/info")
 def info():
     return {"model": STATE["name"], "rul_cap": STATE["cap"], "input_columns": INPUT_COLS,
-            "min_history": MIN_HISTORY, "max_cycles": MAX_CYCLES,
+            "saturation": STATE["cap"] - SATURATION_MARGIN, "min_history": MIN_HISTORY, "max_cycles": MAX_CYCLES,
             "overestimate_p90": round(STATE["p90"], 1),
             "thresholds": {"critical": CRITICAL_BELOW, "inspection": INSPECT_BELOW},
             "test_metrics": STATE.get("test_metrics"),

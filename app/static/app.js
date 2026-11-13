@@ -8,7 +8,6 @@ const ADVICE = {
   inspeccion: ["Inspección", "Programar una inspección en los próximos ciclos."],
   critico: ["Crítico", "Programar mantenimiento de inmediato."],
 };
-const SATURATION = 120;
 
 let info = null;        // /api/info
 let S = null;           // resultado actual: { cycles, rul, rulReal, history }
@@ -111,12 +110,14 @@ function render() {
   const rul = S.rul[idx];
   const cons = Math.max(rul - info.overestimate_p90, 0);
   const status = cons <= info.thresholds.critical ? "critico" : cons <= info.thresholds.inspection ? "inspeccion" : "normal";
-  $("rul").textContent = fmt(rul);
+  const saturada = rul >= info.saturation;      // el modelo no distingue valores sobre el recorte: no se muestra un número falso
+  $("rul").textContent = saturada ? `≥ ${info.rul_cap}` : fmt(rul);
   $("cons").textContent = fmt(cons);
   $("badge").textContent = ADVICE[status][0];
   $("badge").className = `badge ${status}`;
   $("advice").textContent = ADVICE[status][1];
-  $("rul-note").textContent = idx === n - 1 ? "En el último ciclo observado." : "Con los datos hasta este ciclo.";
+  $("rul-note").textContent = (idx === n - 1 ? "En el último ciclo observado." : "Con los datos hasta este ciclo.") +
+    (saturada ? " Motor saludable: el modelo solo sabe que le quedan al menos esos ciclos." : "");
 
   const al = S.alarm;
   $("alarm-card").hidden = !al;
@@ -139,7 +140,7 @@ function render() {
   const warns = [];
   if (idx + 1 < info.min_history) warns.push(`Solo hay ${idx + 1} ciclos hasta este punto; el modelo usa ventanas de ${info.min_history}, así que la estimación es poco fiable.`);
   if (S.cycles[0] !== 1) warns.push("El historial no empieza en el ciclo 1: la línea base se calcula con los primeros 10 ciclos recibidos y la estimación puede desviarse.");
-  if (rul >= SATURATION) warns.push(`El modelo se entrenó con la RUL acotada a ${info.rul_cap} ciclos: indica motor saludable, pero no distingue valores mayores.`);
+  if (saturada) warns.push(`El modelo se entrenó con la RUL acotada a ${info.rul_cap} ciclos: indica motor saludable, pero no distingue valores mayores.`);
   $("warnings").innerHTML = warns.map((w) => `<li>${w}</li>`).join("");
 
   const series = [{ name: "RUL estimada", x: S.cycles, y: S.rul, color: "var(--pred)", width: 2.2 }];

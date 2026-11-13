@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 from app.features import build_features_multi
-from ml_utils import CAP, SEED, all_metrics, bootstrap_ci, last_rows, load_test
+from ml_utils import EVAL_MAX, SEED, all_metrics, bootstrap_ci, last_rows, load_test
 
 ZONES = [-1, 25, 50, 75, 100, 1000]
 ZONE_LABELS = ["0-25", "26-50", "51-75", "76-100", ">100"]
@@ -75,7 +75,7 @@ def main():
     # Margen conservador de la API: ¿cubre lo que prometía? (P90 de sobreestimación calculado en validación)
     p90 = bundle.get("overestimate_p90")
     if p90 is not None:
-        sobre = err[rul <= cap]
+        sobre = err[rul <= EVAL_MAX]
         res["cobertura_margen_p90"] = {"p90_validacion": float(p90), "fraccion_sobreestima_menos_que_p90": float(np.mean(sobre <= p90))}
 
     json.dump(res, open(out_json, "w", encoding="utf8"), indent=2, ensure_ascii=False)
