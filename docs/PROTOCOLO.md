@@ -130,3 +130,19 @@ FD004**: esos conjuntos tienen 6 regímenes de operación y exigen normalizar po
 solo se usa con un modelo con preprocesamiento por régimen (Fase 3), entrenado con los `train_*` y evaluado una sola
 vez en `test_FD002` y `test_FD004`. Para el modelo de régimen único de esta fase la evidencia es la validación
 cruzada repetida; no habrá cifra confirmatoria nueva.
+
+## 8. Fase 3: normalización por régimen (escrita antes de correr)
+
+FD002 y FD004 tienen 6 condiciones de operación. Sin normalizar, los sensores casi no se relacionan con la vida
+restante (correlación ≈ 0); normalizando por régimen sube a ≈ −0,6 a −0,8. Se arma un modelo aparte, de
+investigación (la API desplegada asume un solo régimen y no lo usa).
+
+1. **Validación cruzada** por motor sobre los cuatro `train_FD00X` juntos (709 motores, 5 pliegues, estratificada por
+   conjunto, normalizador reajustado dentro de cada pliegue). Mismas métricas y zona (RUL ≤ 125) de siempre.
+2. **Criterio para congelar y evaluar:** en CV, FD002 y FD004 con RMSE ≤ 20 ciclos y |sesgo con 0–25 ciclos| ≤ 10, y
+   FD001 y FD003 sin empeorar más de 0,5 ciclos frente a la fase 2. Si no se cumple, **no se evalúa en prueba**, no se
+   ajusta nada mirando la prueba, y el resultado queda documentado como límite.
+3. **Evaluación confirmatoria:** si se cumple, se commitea el modelo y se ejecuta `evaluar_final.py` una sola vez sobre
+   `test_FD002` y `test_FD004` (vírgenes). FD001 y FD003 se reportan solo como referencia (ya gastadas).
+4. Sin umbral de aprobado/reprobado en la evaluación; se espera un error mayor que en FD001, porque FD004 combina
+   regímenes y dos modos de falla.
