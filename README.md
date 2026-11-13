@@ -2,7 +2,7 @@
 
 Proyecto de Machine Learning de la Universidad Privada Antenor Orrego (Escuela de Ingeniería de Sistemas e Inteligencia Artificial).
 Estima cuántos ciclos de operación le quedan a un motor antes de fallar, a partir de datos tabulares de sensores
-(NASA C-MAPSS, subconjunto FD001). Modelo final: ensamble XGBoost + MLP, con MAE 9,53 y RMSE 12,79 ciclos en los 100 motores de prueba (la versión 1, solo XGBoost, tenía MAE 13,05 y RMSE 17,77).
+(NASA C-MAPSS, subconjunto FD001). Modelo final: ensamble XGBoost + MLP entrenado con la RUL acotada a 110 ciclos. En validación cruzada por motor (zona RUL ≤ 125) tiene RMSE 11,84 ± 0,49 ciclos. En la prueba de FD001, que ya se vio durante la exploración y no es evidencia confirmatoria, da RMSE 10,9 en motores con RUL ≤ 125 y 14,1 en los 100 motores (los 11 motores sanos con RUL > 125 se subestiman a propósito por el recorte). **En FD003, un segundo modo de falla que el modelo no vio, el RMSE es 37,0 (IC 95 %: 30,7 a 43,0): no transfiere.** Entrenando y validando dentro de FD003 el error vuelve a 11,7, así que las variables sirven y el fallo es de transferencia entre modos de falla. Detalle en `docs/PROTOCOLO.md`.
 
 ## Contenido
 
@@ -10,7 +10,10 @@ Estima cuántos ciclos de operación le quedan a un motor antes de fallar, a par
 |---|---|
 | `entrenar_modelo.py` | Entrenamiento y evaluación del modelo final (flujo principal). Genera `models/`, `outputs/` y `docs/figuras/` |
 | `experimentos_semanas.py` | Una prueba por técnica del curso (semanas 2, 3, 7, 9, 10 y 11) con la misma validación; decide qué entra al modelo |
-| `ml_utils.py` | Datos, métricas y validación cruzada por motor compartidos por los dos scripts |
+| `evaluar_final.py` | Único script que lee archivos de prueba; evalúa el modelo ya commiteado, una sola vez por conjunto (`docs/PROTOCOLO.md`) |
+| `experimentos_recorte.py` | Recorte de la RUL (CAP), calibración isotónica y cota cuantílica, solo con validación cruzada |
+| `experimentos_fd003.py` | Diagnóstico de FD003 usando únicamente su conjunto de entrenamiento |
+| `ml_utils.py` | Datos (FD001 a FD004), métricas y validación cruzada por motor compartidos por los scripts |
 | `rul_cmapss_fd001.py` | Notebook original exportado de Colab (versión 1 del informe); se conserva como línea base |
 | `models/modelo_rul_fd001.joblib` | Modelo entrenado (regresión, clasificador de alarma y metadatos) que usa la aplicación |
 | `app/` | Servicio web: API (FastAPI) y página (HTML/JS) |
@@ -89,6 +92,8 @@ en `models/`; hay que mantener en `requirements.txt` las mismas versiones de sci
 
 ## Limitaciones
 
-Los datos son simulados y de un solo modo de falla. El modelo tiende a sobreestimar la RUL cuando al motor le quedan entre 50 y 100
-ciclos y se entrenó con la RUL acotada a 125 ciclos. Con solo 100 motores de prueba, el RMSE tiene un intervalo de confianza del 95 %
-de aproximadamente 10,7 a 14,7 ciclos. La explicación de la interfaz corresponde al componente XGBoost del ensamble. Es una herramienta de apoyo a la decisión, no un sistema listo para motores reales.
+Los datos son simulados y el entrenamiento tiene un solo modo de falla. En FD003 (otro modo de falla) el modelo sobreestima la vida
+restante en unos 54 ciclos en promedio en motores a 25 ciclos o menos de fallar, y el margen conservador cubrió al 57 % de los motores
+en lugar del 90 % esperado. El modelo tiende a sobreestimar la RUL cuando al motor le quedan entre 50 y 100 ciclos y se entrenó con la
+RUL acotada a 110 ciclos: por encima de ese valor la página muestra «≥ 110». Con solo 100 motores por conjunto de prueba los intervalos
+son anchos (en FD001, RMSE de 11,7 a 16,4 ciclos). La explicación de la interfaz corresponde al componente XGBoost del ensamble. Es una herramienta de apoyo a la decisión, no un sistema listo para motores reales.

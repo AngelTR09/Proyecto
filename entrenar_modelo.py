@@ -40,7 +40,7 @@ from xgboost import XGBClassifier, XGBRegressor
 
 from app.explain import xgb_component
 from app.features import FEATURES, build_features_multi, feature_label
-from ml_utils import CAP, FIG_DIR, N_SPLITS, SEED, cv_predict, cv_report, load_train, rmse
+from ml_utils import CAP, EVAL_MAX, FIG_DIR, N_SPLITS, SEED, cv_predict, cv_report, load_train, rmse
 
 ALARM_HORIZON = 30          # "falla en <= 30 ciclos" (semana 3: clasificación binaria)
 
@@ -143,7 +143,7 @@ def main():
     plt.barh(t["modelo"], t["RMSE"], xerr=t["RMSE_std"], color="#4C72B0")
     plt.gca().invert_yaxis()
     plt.xlabel("RMSE en validación cruzada por motor (ciclos)")
-    plt.title("Comparación de modelos (zona RUL ≤ 125)")
+    plt.title(f"Comparación de modelos (zona RUL ≤ {EVAL_MAX})")
     savefig("cv_modelos.png")
 
     # ------------------------------------------------------------ elección por validación cruzada, no por la prueba
@@ -165,8 +165,8 @@ def main():
 
     # Margen conservador de la API: percentil 90 de la sobreestimación en validación (no en la prueba).
     ens_oof = oofs[best] if best in oofs else oofs["Ensamble XGB+MLP"]
-    zone = (y_raw <= CAP).to_numpy()
-    over = np.clip(ens_oof[zone], 0, CAP) - y_raw.to_numpy()[zone]
+    zone = (y_raw <= EVAL_MAX).to_numpy()
+    over = np.clip(ens_oof[zone], 0, EVAL_MAX) - y_raw.to_numpy()[zone]
     p90 = float(np.quantile(over, 0.90))
     print(f"Sobreestimación P90 en validación: {p90:.1f} ciclos")
 
@@ -201,9 +201,9 @@ def main():
             sel = rng.choice(units, max(int(len(units) * frac), 2), replace=False)
             ia = a[np.isin(groups[a], sel)]
             m = clone(xgb_final).fit(X.iloc[ia], y.iloc[ia])
-            ka = (y_raw.iloc[ia] <= CAP).to_numpy(); kb = (y_raw.iloc[b] <= CAP).to_numpy()
-            trn_r.append(rmse(y_raw.iloc[ia][ka], np.clip(m.predict(X.iloc[ia][ka]), 0, CAP)))
-            val_r.append(rmse(y_raw.iloc[b][kb], np.clip(m.predict(X.iloc[b][kb]), 0, CAP)))
+            ka = (y_raw.iloc[ia] <= EVAL_MAX).to_numpy(); kb = (y_raw.iloc[b] <= EVAL_MAX).to_numpy()
+            trn_r.append(rmse(y_raw.iloc[ia][ka], np.clip(m.predict(X.iloc[ia][ka]), 0, EVAL_MAX)))
+            val_r.append(rmse(y_raw.iloc[b][kb], np.clip(m.predict(X.iloc[b][kb]), 0, EVAL_MAX)))
         lc.append({"motores_entrenamiento": int(len(np.unique(groups)) * 0.8 * frac), "RMSE_entrenamiento": np.mean(trn_r),
                    "RMSE_validacion": np.mean(val_r), "sd_validacion": np.std(val_r)})
     lc = pd.DataFrame(lc)

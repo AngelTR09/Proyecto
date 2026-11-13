@@ -2,6 +2,8 @@
 
 Este documento explica qué técnicas del curso se aplicaron al predictor de vida útil restante (NASA C-MAPSS FD001), por qué se eligieron esas y no otras, y qué resultado dio cada una. Todas las cifras salen de `entrenar_modelo.py` y de `experimentos_semanas.py`; las tablas completas quedan en `outputs/` y las figuras en `docs/figuras/`.
 
+> **Actualización (ramas `fix/protocolo-prueba-limpia` y `fix/sesgo-recorte-rul`).** Las cifras de prueba de las tablas de abajo (MAE 9,53, RMSE 12,79, margen de 18,9 ciclos, recorte a 125) corresponden al modelo anterior y a una prueba de FD001 que ya se había visto, así que se conservan solo como historia. El modelo vigente usa recorte a 110 y margen de 15,0 ciclos, y se evaluó de forma confirmatoria en FD003 con resultado desfavorable. Ver `docs/PROTOCOLO.md` y `docs/resultados/`.
+
 ## Resultado
 
 | Métrica en los 100 motores de prueba | Versión 1 | Ahora |

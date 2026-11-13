@@ -17,7 +17,8 @@ from sklearn.model_selection import GroupKFold
 warnings.filterwarnings("ignore")
 
 SEED = 42
-CAP = 125            # la RUL de entrenamiento se acota a 125 ciclos (RUL "piece-wise")
+CAP = 110            # la RUL de entrenamiento se acota a 110 ciclos (RUL "piece-wise"); elegido por CV (ver docs/PROTOCOLO.md)
+EVAL_MAX = 125       # zona de evaluación: RUL real <= 125, fija para que las cifras sean comparables entre valores de CAP
 N_SPLITS = 5
 COLS = ["unit", "cycle"] + [f"setting{i}" for i in range(1, 4)] + [f"sensor{i}" for i in range(1, 22)]
 SUBSETS = ("FD001", "FD002", "FD003", "FD004")
@@ -127,16 +128,16 @@ def cv_predict(model, X, y, groups, n_splits=N_SPLITS):
 
 
 def cv_report(oof, y_raw, groups, n_splits=N_SPLITS):
-    """Media y desviación entre pliegues, sobre la zona de interés (RUL real <= CAP).
+    """Media y desviación entre pliegues, sobre la zona de interés (RUL real <= EVAL_MAX).
 
     Se compara contra la RUL real sin acotar: la zona cercana a la falla es la que importa para decidir
-    mantenimiento, y los ciclos de motor sano (RUL > CAP) diluirían el error.
+    mantenimiento, y los ciclos de motor sano (RUL > EVAL_MAX) diluirían el error.
     """
     y_raw = pd.Series(np.asarray(y_raw))
     rows = []
     for _, va in GroupKFold(n_splits=n_splits).split(oof, oof, groups):
-        keep = (y_raw.iloc[va] <= CAP).to_numpy()
-        rows.append(all_metrics(y_raw.iloc[va].to_numpy()[keep], np.clip(oof[va][keep], 0, CAP)))
+        keep = (y_raw.iloc[va] <= EVAL_MAX).to_numpy()
+        rows.append(all_metrics(y_raw.iloc[va].to_numpy()[keep], np.clip(oof[va][keep], 0, EVAL_MAX)))
     df = pd.DataFrame(rows)
     out = df.mean().to_dict()
     out["RMSE_std"] = float(df["RMSE"].std())
@@ -154,3 +155,23 @@ def bootstrap_ci(y_true, y_pred, n=2000, seed=SEED, alpha=0.05):
         stats["RMSE"].append(rmse(y_true[i], y_pred[i]))
         stats["NASA"].append(nasa_score(y_true[i], y_pred[i]))
     return {k: (float(np.quantile(v, alpha / 2)), float(np.quantile(v, 1 - alpha / 2))) for k, v in stats.items()}
+
+
+def paired_bootstrap_diff(y_true, pred_a, pred_b, groups, n=2000, seed=SEED, alpha=0.05):
+    """Intervalo de la diferencia de RMSE (A - B) remuestreando los MISMOS motores para ambos modelos.
+
+    Mucho más sensible que comparar dos intervalos independientes. Devuelve (diferencia, inf, sup);
+    diferencia negativa = A es mejor. Usa solo las filas pasadas (p. ej. la zona RUL <= CAP).
+    """
+    rng = np.random.default_rng(seed)
+    y_true, pa, pb, groups = map(np.asarray, (y_true, pred_a, pred_b, groups))
+    units, inv = np.unique(groups, return_inverse=True)
+    cnt = np.bincount(inv, minlength=len(units)).astype(float)
+    sa = np.bincount(inv, weights=(pa - y_true) ** 2, minlength=len(units))
+    sb = np.bincount(inv, weights=(pb - y_true) ** 2, minlength=len(units))
+    diffs = []
+    for _ in range(n):
+        i = rng.integers(0, len(units), len(units))
+        diffs.append(np.sqrt(sa[i].sum() / cnt[i].sum()) - np.sqrt(sb[i].sum() / cnt[i].sum()))
+    point = float(np.sqrt(sa.sum() / cnt.sum()) - np.sqrt(sb.sum() / cnt.sum()))
+    return point, float(np.quantile(diffs, alpha / 2)), float(np.quantile(diffs, 1 - alpha / 2))
