@@ -20,7 +20,14 @@ SEED = 42
 CAP = 125            # la RUL de entrenamiento se acota a 125 ciclos (RUL "piece-wise")
 N_SPLITS = 5
 COLS = ["unit", "cycle"] + [f"setting{i}" for i in range(1, 4)] + [f"sensor{i}" for i in range(1, 22)]
-FILES = ["train_FD001.txt", "test_FD001.txt", "RUL_FD001.txt"]
+SUBSETS = ("FD001", "FD002", "FD003", "FD004")
+
+
+def files_for(subset="FD001"):
+    return [f"train_{subset}.txt", f"test_{subset}.txt", f"RUL_{subset}.txt"]
+
+
+FILES = files_for("FD001")   # compatibilidad
 FIG_DIR = "docs/figuras"
 
 
@@ -32,8 +39,9 @@ def _locate(data_dir, name):
     return None
 
 
-def ensure_data(data_dir="data"):
+def ensure_data(data_dir="data", subset="FD001"):
     """Busca los archivos de C-MAPSS en `data_dir`; si faltan, intenta descargarlos."""
+    FILES = files_for(subset)
     if all(_locate(data_dir, f) for f in FILES):
         return
     os.makedirs(data_dir, exist_ok=True)
@@ -67,16 +75,24 @@ def ensure_data(data_dir="data"):
         raise FileNotFoundError(f"Coloca {FILES} dentro de la carpeta '{data_dir}/'.")
 
 
-def load_data(data_dir="data"):
-    """Devuelve (train, test, rul_test). `train` incluye la columna RUL = T_max - cycle."""
-    ensure_data(data_dir)
-    rd = lambda n: pd.read_csv(_locate(data_dir, n), sep=r"\s+", header=None, names=COLS)
-    train, test = rd("train_FD001.txt"), rd("test_FD001.txt")
-    rul = pd.read_csv(_locate(data_dir, "RUL_FD001.txt"), header=None)[0].to_numpy(float)
-    train = train.sort_values(["unit", "cycle"]).reset_index(drop=True)
-    test = test.sort_values(["unit", "cycle"]).reset_index(drop=True)
+def _read(data_dir, name):
+    return pd.read_csv(_locate(data_dir, name), sep=r"\s+", header=None, names=COLS)
+
+
+def load_train(data_dir="data", subset="FD001"):
+    """Solo el entrenamiento, con la columna RUL = T_max - cycle. No toca ningún archivo de prueba."""
+    ensure_data(data_dir, subset)
+    train = _read(data_dir, f"train_{subset}.txt").sort_values(["unit", "cycle"]).reset_index(drop=True)
     train["RUL"] = train.groupby("unit")["cycle"].transform("max") - train["cycle"]
-    return train, test, rul
+    return train
+
+
+def load_test(data_dir="data", subset="FD001"):
+    """Devuelve (test, rul_test). Solo debe usarlo `evaluar_final.py` (ver docs/PROTOCOLO.md)."""
+    ensure_data(data_dir, subset)
+    test = _read(data_dir, f"test_{subset}.txt").sort_values(["unit", "cycle"]).reset_index(drop=True)
+    rul = pd.read_csv(_locate(data_dir, f"RUL_{subset}.txt"), header=None)[0].to_numpy(float)
+    return test, rul
 
 
 def last_rows(df, X):

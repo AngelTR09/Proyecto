@@ -18,7 +18,8 @@ def test_health_e_info(client):
     assert client.get("/api/health").json()["status"] == "ok"
     info = client.get("/api/info").json()
     assert info["min_history"] == 30 and info["alarm"]["available"]
-    assert info["test_metrics"]["RMSE"] > 0
+    # test_metrics ya no se guarda en el modelo (la prueba se evalúa aparte, en evaluar_final.py)
+    assert info["test_metrics"] is None or info["test_metrics"]["RMSE"] > 0
 
 
 def test_motor_demo_devuelve_rul_alarma_y_real(client):
