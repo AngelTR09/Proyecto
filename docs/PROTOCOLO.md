@@ -57,3 +57,16 @@ Criterios por cambio:
 
 Los datos son simulados con un solo modo de falla en entrenamiento. Esta herramienta apoya la decisión de
 mantenimiento; no es un sistema para motores reales.
+
+## 6. Resultado de la evaluación confirmatoria (commit `aa11773`)
+
+Ejecutada una sola vez, sin ajustes posteriores. Detalle en `docs/resultados/`.
+
+| Conjunto | Motores | RMSE (IC 95 %) | MAE | Sesgo en 0–25 ciclos |
+|---|---|---|---|---|
+| FD003, virgen (otro modo de falla) | 100 | 37,0 (30,7 – 43,0) | 26,0 | **+53,6** |
+| FD001, prueba ya vista (referencia) | 100 | 14,1 (11,7 – 16,4) | 9,9 | +0,6 |
+
+Lectura: el modelo **no transfiere** a un segundo modo de falla. Cerca de la falla sobreestima la vida restante
+en más de 50 ciclos, que es el error más peligroso para mantenimiento. El margen conservador (P90 de FD001) solo
+cubrió el 57 % de los motores de FD003, frente al 97 % en FD001. Las cifras de FD001 no son confirmatorias.

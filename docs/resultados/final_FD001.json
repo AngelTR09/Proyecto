@@ -1,0 +1,38 @@
+{
+  "subset": "FD001",
+  "n_motores": 100,
+  "commit": "aa11773fb041d08f59017a0861625180b3cde48a",
+  "fecha": "2026-11-13T07:39:13",
+  "modelo": "Ensamble XGBoost + MLP",
+  "repite_evaluacion_de_commit": null,
+  "contra_RUL_real": {
+    "MAE": 9.846396633632324,
+    "RMSE": 14.068061903828236,
+    "R2": 0.885393566642239,
+    "NASA": 235.1488438625974
+  },
+  "contra_RUL_acotada": {
+    "MAE": 6.21568635154678,
+    "RMSE": 9.148669366876142,
+    "R2": 0.9394442777851324,
+    "NASA": 111.73017757582981
+  },
+  "ic95_contra_RUL_real": {
+    "MAE": [
+      7.950036749454994,
+      11.830241871101471
+    ],
+    "RMSE": [
+      11.690887954638749,
+      16.395998937265
+    ],
+    "NASA": [
+      163.97606005280505,
+      318.56630399218216
+    ]
+  },
+  "cobertura_margen_p90": {
+    "p90_validacion": 14.952652453348577,
+    "fraccion_sobreestima_menos_que_p90": 0.9662921348314607
+  }
+}
